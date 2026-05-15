@@ -2,14 +2,7 @@ import { useEffect, useMemo, useRef } from 'react'
 import { inboxLive } from '../live/inbox'
 import { useInboxRead } from '../live/inbox-read'
 import { useInboxSelection } from '../live/inbox-selection'
-import type { InboxEntry, InboxKind } from '../api/inbox'
-
-const KIND_DOT: Record<InboxKind, string> = {
-  status: 'bg-accent',
-  done: 'bg-green',
-  blocked: 'bg-red',
-  question: 'bg-amber-400',
-}
+import type { InboxEntry } from '../api/inbox'
 
 /**
  * Inbox sidebar list. Linear-style:
@@ -105,7 +98,6 @@ function InboxRow({
   unread: boolean
   onClick: () => void
 }) {
-  const dotColor = entry.kind ? KIND_DOT[entry.kind] : 'bg-text-muted/30'
   return (
     <div
       role="button"
@@ -125,11 +117,11 @@ function InboxRow({
         <span aria-hidden className="absolute left-0 top-0 bottom-0 w-[2px] bg-accent" />
       )}
 
-      {/* Line 1: dot · workspace · time */}
+      {/* Line 1: unread dot · workspace · time */}
       <div className="flex items-center gap-1.5">
         <span
           aria-hidden
-          className={`shrink-0 w-1.5 h-1.5 rounded-full ${unread ? dotColor : 'bg-transparent border border-text-muted/30'}`}
+          className={`shrink-0 w-1.5 h-1.5 rounded-full ${unread ? 'bg-accent' : 'bg-transparent'}`}
         />
         <span className={`flex-1 truncate text-[12px] ${unread ? 'font-medium text-text' : 'text-text'}`}>
           {entry.workspaceLabel ?? entry.workspaceId}

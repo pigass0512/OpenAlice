@@ -22,7 +22,6 @@ describe('InboxStore (in-memory)', () => {
       workspaceId: 'ws-1',
       workspaceLabel: 'chat-with-kimi',
       comments: 'hey, can you check the SPY chart?',
-      kind: 'question',
     })
     expect(entry.id).toMatch(/^[0-9a-f-]{36}$/)
     expect(entry.workspaceId).toBe('ws-1')
@@ -35,7 +34,6 @@ describe('InboxStore (in-memory)', () => {
     const entry = await store.append({
       workspaceId: 'ws-1',
       docs: [{ path: 'research/macro-2026-05-14.md' }],
-      kind: 'done',
     })
     expect(entry.docs).toEqual([{ path: 'research/macro-2026-05-14.md' }])
     expect(entry.comments).toBeUndefined()
@@ -133,14 +131,12 @@ describe('InboxStore (JSONL persistence)', () => {
       workspaceId: 'ws-1',
       docs: [{ path: 'report.md' }],
       comments: 'final draft',
-      kind: 'done',
     })
     const fresh = createInboxStore({ filePath: path })
     const { entries } = await fresh.read()
     expect(entries).toHaveLength(1)
     expect(entries[0].docs).toEqual([{ path: 'report.md' }])
     expect(entries[0].comments).toBe('final draft')
-    expect(entries[0].kind).toBe('done')
     await rm(dir, { recursive: true, force: true })
   })
 

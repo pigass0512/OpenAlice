@@ -5,21 +5,7 @@ import { inboxLive } from '../live/inbox'
 import { useInboxRead } from '../live/inbox-read'
 import { useInboxSelection } from '../live/inbox-selection'
 import { readWorkspaceFile, type ReadFileResult } from '../components/workspace/api'
-import type { InboxEntry, InboxKind, InboxDoc } from '../api/inbox'
-
-const KIND_COLORS: Record<InboxKind, string> = {
-  status: 'bg-accent/15 text-accent',
-  done: 'bg-green/15 text-green',
-  blocked: 'bg-red/15 text-red',
-  question: 'bg-amber-500/15 text-amber-400',
-}
-
-const KIND_LABELS: Record<InboxKind, string> = {
-  status: 'Status',
-  done: 'Done',
-  blocked: 'Blocked',
-  question: 'Question',
-}
+import type { InboxEntry, InboxDoc } from '../api/inbox'
 
 interface InboxPageProps {
   visible: boolean
@@ -89,16 +75,11 @@ function Detail({ entry, unread }: { entry: InboxEntry; unread: boolean }) {
 
   return (
     <div className="max-w-[820px] mx-auto py-6 px-4 md:px-8">
-      {/* Header: workspace · kind · timestamp */}
+      {/* Header: workspace · timestamp */}
       <div className="flex items-center gap-2 mb-4 flex-wrap">
         <span className="text-[14px] font-medium text-text">
           {entry.workspaceLabel ?? entry.workspaceId}
         </span>
-        {entry.kind && (
-          <span className={`text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded ${KIND_COLORS[entry.kind]}`}>
-            {KIND_LABELS[entry.kind]}
-          </span>
-        )}
         {unread && (
           <span className="text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded bg-accent/15 text-accent">
             New

@@ -9,9 +9,7 @@
  * (MCP tool + workspace identity) is decided.
  */
 import { Hono } from 'hono'
-import type { IInboxStore, InboxKind, InboxDoc } from '../../core/inbox-store.js'
-
-const VALID_KINDS: ReadonlySet<InboxKind> = new Set(['status', 'done', 'blocked', 'question'])
+import type { IInboxStore, InboxDoc } from '../../core/inbox-store.js'
 
 export interface InboxRoutesDeps {
   inboxStore: IInboxStore
@@ -40,7 +38,6 @@ export function createInboxRoutes(deps: InboxRoutesDeps) {
       workspaceLabel: string
       docs: unknown
       comments: string
-      kind: string
     }>
     if (!b.workspaceId || typeof b.workspaceId !== 'string') {
       return c.json({ error: 'workspaceId required' }, 400)
@@ -66,7 +63,6 @@ export function createInboxRoutes(deps: InboxRoutesDeps) {
     }
 
     const comments = typeof b.comments === 'string' ? b.comments : undefined
-    const kind = b.kind && VALID_KINDS.has(b.kind as InboxKind) ? (b.kind as InboxKind) : undefined
 
     try {
       const entry = await deps.inboxStore.append({
@@ -74,7 +70,6 @@ export function createInboxRoutes(deps: InboxRoutesDeps) {
         workspaceLabel: typeof b.workspaceLabel === 'string' ? b.workspaceLabel : undefined,
         docs,
         comments,
-        kind,
       })
       return c.json({ entry })
     } catch (err) {

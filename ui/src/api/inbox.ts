@@ -1,7 +1,5 @@
 import { fetchJson } from './client'
 
-export type InboxKind = 'status' | 'done' | 'blocked' | 'question'
-
 export interface InboxDoc {
   path: string
 }
@@ -15,7 +13,6 @@ export interface InboxEntry {
   docs?: InboxDoc[]
   /** Agent's message body (markdown). Renders below docs. */
   comments?: string
-  kind?: InboxKind
 }
 
 export interface InboxHistoryResponse {
@@ -28,7 +25,6 @@ export interface InboxSeedBody {
   workspaceLabel?: string
   docs?: InboxDoc[]
   comments?: string
-  kind?: InboxKind
 }
 
 export const inboxApi = {
