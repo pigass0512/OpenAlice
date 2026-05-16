@@ -15,6 +15,7 @@ import type { ComponentType } from 'react'
 import { ChatChannelListContainer } from './components/ChatChannelListContainer'
 import { TraditionalChatSidebar } from './components/TraditionalChatSidebar'
 import { NotificationsLegacySidebar } from './components/NotificationsLegacySidebar'
+import { ConnectorsLegacySidebar } from './components/ConnectorsLegacySidebar'
 import { NewChannelButton } from './components/NewChannelButton'
 import { InboxSidebar } from './components/InboxSidebar'
 import { WorkspacesSidebar } from './components/workspace/WorkspacesSidebar'
@@ -91,6 +92,10 @@ const SECTION_BY_KEY: Record<ActivitySection, SidebarSection> = {
   'notifications-legacy': {
     title: 'Notifications',
     Secondary: NotificationsLegacySidebar,
+  },
+  'connectors-legacy': {
+    title: 'Connectors',
+    Secondary: ConnectorsLegacySidebar,
   },
 }
 

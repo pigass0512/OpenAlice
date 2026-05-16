@@ -19,7 +19,10 @@ const CATEGORIES: CategoryItem[] = [
   { label: 'General', category: 'general' },
   { label: 'AI Provider', category: 'ai-provider' },
   { label: 'Trading Accounts', category: 'trading', alsoActiveFor: ['uta-detail'] },
-  { label: 'Connectors', category: 'connectors' },
+  // Connectors moved to its own ActivityBar Legacy entry — see
+  // ConnectorsLegacySidebar. The `settings/connectors` ViewSpec is
+  // still the underlying tab, but it's reached from the Legacy
+  // section now, not from this Settings list.
   { label: 'MCP Server', category: 'mcp' },
   { label: 'Market Data', category: 'market-data' },
   { label: 'News Sources', category: 'news-collector' },

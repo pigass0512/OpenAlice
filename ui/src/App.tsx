@@ -19,7 +19,7 @@ export type Page =
   | 'chat' | 'inbox' | 'workspaces' | 'portfolio' | 'news' | 'automation' | 'market'
   | 'trading-as-git'
   | 'settings' | 'dev'
-  | 'traditional-chat' | 'notifications-legacy'
+  | 'traditional-chat' | 'notifications-legacy' | 'connectors-legacy'
 
 /** Track whether we're at a desktop viewport (md+ in Tailwind = ≥768px). */
 function useIsDesktop(): boolean {

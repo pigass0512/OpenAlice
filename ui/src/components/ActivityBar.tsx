@@ -1,4 +1,4 @@
-import { type LucideIcon, MessageSquare, MessagesSquare, Inbox, Bell, LineChart, GitBranch, BarChart3, Newspaper, Zap, Settings, Code2, TerminalSquare, ChevronDown } from 'lucide-react'
+import { type LucideIcon, MessageSquare, MessagesSquare, Inbox, Bell, LineChart, GitBranch, BarChart3, Newspaper, Zap, Settings, Code2, TerminalSquare, ChevronDown, Plug } from 'lucide-react'
 import { type Page } from '../App'
 import { useWorkspace } from '../tabs/store'
 import type { ActivitySection, ViewSpec } from '../tabs/types'
@@ -23,6 +23,7 @@ function activitySectionFor(page: Page): ActivitySection {
     case 'news':                 return 'news'
     case 'traditional-chat':     return 'traditional-chat'
     case 'notifications-legacy': return 'notifications-legacy'
+    case 'connectors-legacy':    return 'connectors-legacy'
   }
 }
 
@@ -100,6 +101,7 @@ const NAV_SECTIONS: NavSection[] = [
     items: [
       { page: 'traditional-chat',     label: 'Traditional chat', icon: MessagesSquare },
       { page: 'notifications-legacy', label: 'Notifications',    icon: Bell, defaultTab: { kind: 'notifications-inbox', params: {} } },
+      { page: 'connectors-legacy',    label: 'Connectors',       icon: Plug, defaultTab: { kind: 'settings', params: { category: 'connectors' } } },
       { page: 'automation',           label: 'Automation',       icon: Zap, defaultTab: { kind: 'automation', params: { section: 'flow' } } },
     ],
   },

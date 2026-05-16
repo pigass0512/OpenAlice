@@ -53,6 +53,7 @@ export type ActivitySection =
   | 'news'
   | 'traditional-chat'
   | 'notifications-legacy'
+  | 'connectors-legacy'
 
 export interface Tab {
   id: string
