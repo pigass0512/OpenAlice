@@ -29,7 +29,7 @@ import {
 import type { CurrencyClientLike } from '@/domain/market-data/client/types.js'
 import { buildSDKCredentials } from '@/domain/market-data/credential-map.js'
 import { OpenBBCurrencyClient } from '@/domain/market-data/client/openbb-api/currency-client.js'
-import { createTradingRoutes } from '@/webui/routes/trading.js'
+import { createTradingRoutes } from './http/routes-trading.js'
 import type { EngineContext } from '@/core/types.js'
 
 const UTA_PORT = Number(process.env['OPENALICE_UTA_PORT'] ?? 47333)

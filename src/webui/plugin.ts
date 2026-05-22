@@ -15,7 +15,7 @@ import { createEventsRoutes } from './routes/events.js'
 import { createTopologyRoutes } from './routes/topology.js'
 import { createCronRoutes } from './routes/cron.js'
 import { createHeartbeatRoutes } from './routes/heartbeat.js'
-import { createTradingRoutes } from './routes/trading.js'
+import { createTradingProxyRoutes } from './routes/trading-proxy.js'
 import { createTradingConfigRoutes } from './routes/trading-config.js'
 import { createDevRoutes } from './routes/dev.js'
 import { createSimulatorRoutes } from './routes/simulator.js'
@@ -135,7 +135,13 @@ export class WebPlugin implements Plugin {
     app.route('/api/cron', createCronRoutes(ctx))
     app.route('/api/heartbeat', createHeartbeatRoutes(ctx))
     app.route('/api/trading/config', createTradingConfigRoutes(ctx))
-    app.route('/api/trading', createTradingRoutes(ctx))
+    // `/api/trading/*` is proxied to the co-located UTA service (decision #2
+    // of UTA-split v1 — UI stays single-origin). Trading domain lives there.
+    const utaUrl = process.env['OPENALICE_UTA_URL']
+    if (!utaUrl) {
+      throw new Error('OPENALICE_UTA_URL not set — UTA service should be spawned by Guardian before Alice boots')
+    }
+    app.route('/api/trading', createTradingProxyRoutes({ utaBaseUrl: utaUrl }))
     app.route('/api/dev', createDevRoutes(ctx.connectorCenter))
     app.route('/api/simulator', createSimulatorRoutes(ctx))
     app.route('/api/tools', createToolsRoutes(ctx.toolCenter))

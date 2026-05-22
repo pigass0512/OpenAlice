@@ -7,6 +7,22 @@ import {
 import { createBroker } from '../../domain/trading/brokers/factory.js'
 import { BUILTIN_BROKER_PRESETS } from '../../domain/trading/brokers/presets.js'
 import { deriveUtaId, getBrokerPreset, mintInstanceId } from '../../domain/trading/brokers/preset-catalog.js'
+import { triggerUTARestart } from '../../services/uta-supervisor/restart-trigger.js'
+
+/** Fire-and-forget UTA restart after a config mutation. Logs but doesn't
+ *  block the HTTP response — UI returns immediately and Guardian flips
+ *  the UTA process in the background. Subsequent `/api/trading/*` requests
+ *  will hit the new UTA via the BFF proxy. */
+function notifyUTAReload(): void {
+  triggerUTARestart()
+    .then((r) => {
+      if (!r.triggered) console.warn('[trading-config] UTA restart skipped:', r.error)
+      else if (!r.ready) console.warn('[trading-config] UTA did not come back:', r.error)
+    })
+    .catch((err) => {
+      console.warn('[trading-config] UTA restart failed:', err instanceof Error ? err.message : err)
+    })
+}
 
 // ==================== Credential helpers ====================
 
@@ -126,6 +142,7 @@ export function createTradingConfigRoutes(ctx: EngineContext) {
       const validated = utaConfigSchema.parse(candidate)
       accounts.push(validated)
       await writeUTAsConfig(accounts)
+      notifyUTAReload()
 
       ctx.utaManager.reconnectUTA(id).catch(() => {})
       return c.json(validated, 201)
@@ -166,6 +183,7 @@ export function createTradingConfigRoutes(ctx: EngineContext) {
       const idx = accounts.findIndex((a) => a.id === id)
       accounts[idx] = validated
       await writeUTAsConfig(accounts)
+      notifyUTAReload()
 
       // Handle enabled state changes at runtime
       const wasEnabled = existing.enabled !== false
@@ -199,6 +217,7 @@ export function createTradingConfigRoutes(ctx: EngineContext) {
       }
       const filtered = accounts.filter((a) => a.id !== id)
       await writeUTAsConfig(filtered)
+      notifyUTAReload()
       // Close and deregister running account instance if any
       await ctx.utaManager.removeUTA(id)
       // Ephemeral UTAs also have their persistent trading state wiped — the
