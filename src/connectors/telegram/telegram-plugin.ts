@@ -13,9 +13,9 @@ import { forceCompact } from '../../core/compaction'
 import { readAIProviderConfig, setActiveProfile, readConnectorsConfig } from '../../core/config'
 import type { ConnectorCenter } from '../../core/connector-center.js'
 import { TelegramConnector, splitMessage, MAX_MESSAGE_LENGTH } from './telegram-connector.js'
-import type { UTAManager } from '../../domain/trading/index.js'
-import type { Operation } from '../../domain/trading/git/types.js'
-import { getOperationSymbol } from '../../domain/trading/git/types.js'
+import type { UTAManagerSDK } from '../../services/uta-client/index.js'
+import type { Operation } from '@traderalice/uta-protocol'
+import { getOperationSymbol } from '@traderalice/uta-protocol'
 import { UNSET_DECIMAL } from '@traderalice/ibkr'
 import Decimal from 'decimal.js'
 
@@ -491,7 +491,7 @@ export class TelegramPlugin implements Plugin {
 
   // ── Trading command ──
 
-  private async handleTradingCommand(chatId: number, utaManager: UTAManager) {
+  private async handleTradingCommand(chatId: number, utaManager: UTAManagerSDK) {
     const accounts = await utaManager.resolve()
     if (accounts.length === 0) {
       await this.sendReply(chatId, 'No trading accounts configured.')
@@ -510,7 +510,7 @@ export class TelegramPlugin implements Plugin {
     await this.bot!.api.sendMessage(chatId, text, { reply_markup: keyboard })
   }
 
-  private async buildTradingOverview(utaManager: UTAManager): Promise<{ text: string; keyboard: InlineKeyboard }> {
+  private async buildTradingOverview(utaManager: UTAManagerSDK): Promise<{ text: string; keyboard: InlineKeyboard }> {
     const accounts = await utaManager.resolve()
     const lines: string[] = ['Trading Panel', '']
     const keyboard = new InlineKeyboard()
@@ -531,7 +531,7 @@ export class TelegramPlugin implements Plugin {
     return { text: lines.join('\n'), keyboard }
   }
 
-  private async buildAccountPanel(utaManager: UTAManager, accountId: string): Promise<{ text: string; keyboard: InlineKeyboard }> {
+  private async buildAccountPanel(utaManager: UTAManagerSDK, accountId: string): Promise<{ text: string; keyboard: InlineKeyboard }> {
     const uta = await utaManager.get(accountId)
     if (!uta) return { text: 'Account not found.', keyboard: new InlineKeyboard() }
 

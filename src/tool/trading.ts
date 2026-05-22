@@ -11,8 +11,7 @@ import { z } from 'zod'
 import Decimal from 'decimal.js'
 import { Contract, UNSET_DECIMAL, coerceSecType } from '@traderalice/ibkr'
 import { BrokerError, type OpenOrder } from '@traderalice/uta-protocol'
-import type { UTAManager } from '@/domain/trading/uta-manager.js'
-import type { FxService } from '@/domain/trading/fx-service.js'
+import type { UTAManagerSDK } from '@/services/uta-client/index.js'
 import { normalizeBrokerSearchPattern } from '@/domain/trading/contract-search-rules.js'
 import '@/domain/trading/contract-ext.js'
 
@@ -109,7 +108,7 @@ const positiveNumeric = z
   )
   .transform((v) => (v === '' ? undefined : v))
 
-export function createTradingTools(manager: UTAManager, fxService?: FxService): Record<string, Tool> {
+export function createTradingTools(manager: UTAManagerSDK): Record<string, Tool> {
   return {
     listUTAs: tool({
       description: 'List all registered trading accounts with their id, provider, label, and capabilities.',
@@ -212,6 +211,26 @@ If this tool returns an error with transient=true, wait a few seconds and retry 
       execute: async ({ source, symbol }) => {
         const targets = await manager.resolve(source)
         if (targets.length === 0) return { positions: [], message: 'No accounts available.' }
+        // FX rates table — UTA's /fx-rates collects every currency in
+        // use server-side and returns a flat lookup. Locally we treat
+        // missing rates as 1.0 (the broker probably reported a USD-side
+        // value already) and accumulate any warnings the rate carries.
+        const fxLookup = new Map<string, number>()
+        const fxWarningsFromRates: string[] = []
+        try {
+          const rates = await manager.getFxRates()
+          for (const r of rates) {
+            fxLookup.set(r.currency, r.rate)
+            if (r.source === 'default' || r.source === 'fallback') {
+              fxWarningsFromRates.push(`${r.currency} rate using ${r.source} table`)
+            }
+          }
+        } catch { /* if /fx-rates is unreachable, fall through with empty map */ }
+        const fxToUsd = (amount: string, currency: string): string => {
+          if (currency === 'USD') return amount
+          const rate = fxLookup.get(currency) ?? 1
+          return new Decimal(amount).mul(rate).toString()
+        }
         try {
           const allPositions: Array<Record<string, unknown>> = []
           const fxWarnings: string[] = []
@@ -223,22 +242,12 @@ If this tool returns an error with transient=true, wait a few seconds and retry 
             let totalMarketValueUsd = new Decimal(0)
             const posUsdValues: Decimal[] = []
             for (const pos of positions) {
-              if (fxService && pos.currency !== 'USD') {
-                const r = await fxService.convertToUsd(pos.marketValue, pos.currency)
-                posUsdValues.push(new Decimal(r.usd))
-                if (r.fxWarning && !fxWarnings.includes(r.fxWarning)) fxWarnings.push(r.fxWarning)
-              } else {
-                posUsdValues.push(new Decimal(pos.marketValue))
-              }
+              posUsdValues.push(new Decimal(fxToUsd(pos.marketValue, pos.currency)))
               totalMarketValueUsd = totalMarketValueUsd.plus(posUsdValues[posUsdValues.length - 1])
             }
 
             // Account netLiq in USD for equity percentage
-            let netLiqUsd = new Decimal(accountInfo.netLiquidation)
-            if (fxService && accountInfo.baseCurrency !== 'USD') {
-              const r = await fxService.convertToUsd(accountInfo.netLiquidation, accountInfo.baseCurrency)
-              netLiqUsd = new Decimal(r.usd)
-            }
+            const netLiqUsd = new Decimal(fxToUsd(accountInfo.netLiquidation, accountInfo.baseCurrency))
 
             let idx = 0
             for (const pos of positions) {
@@ -257,7 +266,8 @@ If this tool returns an error with transient=true, wait a few seconds and retry 
             }
           }
           if (allPositions.length === 0) return { positions: [], message: 'No open positions.' }
-          if (fxWarnings.length > 0) return { positions: allPositions, fxWarnings }
+          const allWarnings = [...new Set([...fxWarnings, ...fxWarningsFromRates])]
+          if (allWarnings.length > 0) return { positions: allPositions, fxWarnings: allWarnings }
           return allPositions
         } catch (err) {
           return handleBrokerError(err)

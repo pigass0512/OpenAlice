@@ -48,6 +48,10 @@ export class NotImplementedInSDK extends Error {
 export interface UTAAccountSDKDeps {
   client: UTAClient
   id: string
+  /** Optional cached label from the listUTAs response. When `UTAManagerSDK`
+   *  constructs accounts via `resolve()` it fills this in; standalone
+   *  `new UTAAccountSDK({client, id})` defaults to the id. */
+  label?: string
 }
 
 /**
@@ -57,10 +61,14 @@ export interface UTAAccountSDKDeps {
  */
 export class UTAAccountSDK {
   readonly id: string
+  /** Cached display label. May be just the id if the SDK was constructed
+   *  outside of `UTAManagerSDK.resolve()`. */
+  readonly label: string
   private readonly client: UTAClient
 
   constructor(deps: UTAAccountSDKDeps) {
     this.id = deps.id
+    this.label = deps.label ?? deps.id
     this.client = deps.client
   }
 

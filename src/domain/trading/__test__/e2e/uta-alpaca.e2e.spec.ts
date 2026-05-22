@@ -90,7 +90,7 @@ describe('UTA — Alpaca AI tool aliceId resolution', () => {
   it('searchContracts → getQuote round-trips with a real aliceId', async () => {
     const mgr = new UTAManager()
     mgr.add(uta!)
-    const tools = createTradingTools(mgr)
+    const tools = createTradingTools(mgr as unknown as import('@/services/uta-client/index.js').UTAManagerSDK)
 
     const searchResult = await (tools.searchContracts.execute as Function)({
       pattern: 'AAPL',
@@ -113,7 +113,7 @@ describe('UTA — Alpaca AI tool aliceId resolution', () => {
   it('getContractDetails with aliceId returns spec', async () => {
     const mgr = new UTAManager()
     mgr.add(uta!)
-    const tools = createTradingTools(mgr)
+    const tools = createTradingTools(mgr as unknown as import('@/services/uta-client/index.js').UTAManagerSDK)
     const nativeKey = broker!.getNativeKey({ symbol: 'AAPL' } as any)
     const aliceId = `${uta!.id}|${nativeKey}`
 

@@ -1,7 +1,7 @@
 import { readFile, writeFile, mkdir } from 'fs/promises'
 import { dirname } from 'path'
 // Engine removed — AgentCenter is the top-level AI entry point
-import { loadConfig, readUTAsConfig, purgeEphemeralUTAs } from './core/config.js'
+import { loadConfig } from './core/config.js'
 import { dataPath, defaultPath } from '@/core/paths.js'
 import type { Plugin, EngineContext, ReconnectResult } from './core/types.js'
 import { McpPlugin } from './server/mcp.js'
@@ -10,8 +10,9 @@ import { WebPlugin } from './webui/index.js'
 import { createWorkspaceServiceRef } from './webui/plugin.js'
 import { McpAskPlugin } from './connectors/mcp-ask/index.js'
 import { createThinkingTools } from './tool/thinking.js'
-import { UTAManager, createSnapshotService, createSnapshotScheduler } from './domain/trading/index.js'
-import { FxService } from './domain/trading/fx-service.js'
+import { createUTAClient } from '@traderalice/uta-protocol'
+import { UTAManagerSDK } from './services/uta-client/index.js'
+import { waitForUTAReady } from './services/uta-supervisor/health.js'
 import { createTradingTools } from './tool/trading.js'
 import { SymbolIndex } from './domain/market-data/equity/index.js'
 import { CommodityCatalog } from './domain/market-data/commodity/index.js'
@@ -95,27 +96,25 @@ async function main() {
   const workspaceToolCenter = new WorkspaceToolCenter()
   workspaceToolCenter.register(inboxPushFactory)
 
-  // ==================== Trading Account Manager ====================
+  // ==================== UTA SDK (HTTP boundary) ====================
+  //
+  // Trading domain lives in the co-located UTA service spawned by
+  // Guardian (`scripts/guardian/dev.ts` in dev / Docker `tini` supervisor
+  // in prod). Alice talks to it through the SDK — broker init, snapshot
+  // scheduling, FX, and ephemeral-UTA purges all live in UTA's
+  // `services/uta/src/main.ts`.
 
-  const utaManager = new UTAManager({ eventLog, toolCenter })
-
-  // Ephemeral test UTAs from a previous session are purged before init —
-  // their config rows are removed and `data/trading/<id>/` is wiped, so
-  // fixture-driven tests start each session from a clean slate.
-  const survivors = await purgeEphemeralUTAs(await readUTAsConfig())
-  for (const accCfg of survivors) {
-    if (accCfg.enabled === false) continue
-    await utaManager.initUTA(accCfg)
+  const utaUrl = process.env['OPENALICE_UTA_URL']
+  if (!utaUrl) {
+    throw new Error('OPENALICE_UTA_URL not set — Guardian must spawn the UTA service before Alice boots')
   }
-  utaManager.registerCcxtToolsIfNeeded()
-
-  // ==================== Snapshot ====================
-
-  const snapshotService = createSnapshotService({ utaManager, eventLog })
-  utaManager.setSnapshotHooks({
-    onPostPush: (id) => { snapshotService.takeSnapshot(id, 'post-push') },
-    onPostReject: (id) => { snapshotService.takeSnapshot(id, 'post-reject') },
-  })
+  const utaClient = createUTAClient({ baseUrl: utaUrl })
+  const utaHealth = await waitForUTAReady({ baseUrl: utaUrl, timeoutMs: 15_000 })
+  if (!utaHealth) {
+    throw new Error(`UTA service at ${utaUrl} did not become ready within 15s`)
+  }
+  console.log(`uta: ready (${utaHealth.utas} accounts, startedAt=${utaHealth.startedAt})`)
+  const utaManager = new UTAManagerSDK({ client: utaClient })
 
   // ==================== Persona ====================
   // Persona + heartbeat default files are seeded on first run so the user
@@ -178,11 +177,6 @@ async function main() {
     economyClient = new SDKEconomyClient(executor, 'economy', 'federal_reserve', credentials, routeMap)
   }
 
-  // ==================== FX Service ====================
-
-  const fxService = new FxService(currencyClient)
-  utaManager.setFxService(fxService)
-
   // ==================== Equity Symbol Index ====================
 
   const symbolIndex = new SymbolIndex()
@@ -199,7 +193,7 @@ async function main() {
 
   // One unified set of trading tools — routes via `source` parameter at runtime
   toolCenter.register(
-    createTradingTools(utaManager, fxService),
+    createTradingTools(utaManager),
     'trading',
   )
 
@@ -286,13 +280,9 @@ async function main() {
   const cronListener = createCronListener({ agentWorkListener, registry: listenerRegistry, session: cronSession })
   await cronListener.start()
 
-  // ==================== Snapshot Scheduler (Pump-driven) ====================
-
-  const snapshotScheduler = createSnapshotScheduler({ snapshotService, config: config.snapshot })
-  await snapshotScheduler.start()
-  if (config.snapshot.enabled) {
-    console.log(`snapshot: scheduler started (every ${config.snapshot.every})`)
-  }
+  // Snapshot scheduler lives in UTA after Step 6 — Alice no longer
+  // drives the periodic equity-curve writes. The UTA service starts
+  // its own scheduler at boot.
 
   // ==================== Heartbeat (Pump-driven) ====================
 
@@ -440,7 +430,7 @@ async function main() {
     fire: createEventBus(eventLog),
     bbEngine: getSDKExecutor(),
     marketSearch,
-    utaManager, fxService, snapshotService,
+    utaManager,
     newsProvider: newsStore,
     reconnectConnectors,
   }
@@ -452,31 +442,15 @@ async function main() {
 
   console.log('engine: started')
 
-  // ==================== Broker catalog refresh ====================
-  // Brokers that cache their catalog locally (Alpaca, CCXT, Mock) need
-  // periodic refreshes so newly listed assets surface in search and
-  // delisted ones drop. The optional `refreshCatalog` is a no-op for
-  // brokers that don't cache (IBKR — server-side reqMatchingSymbols).
-  const CATALOG_REFRESH_MS = 6 * 60 * 60 * 1000  // 6h
-  const catalogRefreshTimer = setInterval(() => {
-    for (const uta of utaManager.resolve()) {
-      uta.refreshCatalog().catch((err) => {
-        console.warn(`[catalog-refresh] ${uta.id} failed:`, err instanceof Error ? err.message : err)
-      })
-    }
-  }, CATALOG_REFRESH_MS)
-  // Don't keep the process alive just for the refresh loop — shutdown logic
-  // below clears it anyway, this is belt-and-braces for clean Node exit.
-  catalogRefreshTimer.unref?.()
+  // Broker catalog refresh, snapshot scheduling, and broker close-on-
+  // shutdown all live in the UTA service after Step 6.
 
   // ==================== Shutdown ====================
 
   let stopped = false
   const shutdown = async () => {
     stopped = true
-    clearInterval(catalogRefreshTimer)
     newsCollector?.stop()
-    snapshotScheduler.stop()
     heartbeat.stop()
     metricsListener.stop()
     cronListener.stop()
@@ -489,7 +463,6 @@ async function main() {
     await newsStore.close()
     await toolCallLog.close()
     await eventLog.close()
-    await utaManager.closeAll()
     process.exit(0)
   }
   process.on('SIGINT', shutdown)

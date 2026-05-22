@@ -80,10 +80,10 @@ export class UTAManagerSDK {
    *  provider prefix when `source` is given. */
   async resolve(source?: string): Promise<UTAAccountSDK[]> {
     const all = await this.listUTAs()
-    const ids = source
-      ? all.filter((u) => u.id === source || u.id.startsWith(`${source}-`)).map((u) => u.id)
-      : all.map((u) => u.id)
-    return ids.map((id) => new UTAAccountSDK({ client: this.client, id }))
+    const matches = source
+      ? all.filter((u) => u.id === source || u.id.startsWith(`${source}-`))
+      : all
+    return matches.map((u) => new UTAAccountSDK({ client: this.client, id: u.id, label: u.label }))
   }
 
   /** Like `UTAManager.resolveOne(source)` but async and throws when
@@ -98,8 +98,9 @@ export class UTAManagerSDK {
   }
 
   async get(id: string): Promise<UTAAccountSDK | undefined> {
-    const has = await this.has(id)
-    return has ? new UTAAccountSDK({ client: this.client, id }) : undefined
+    const all = await this.listUTAs()
+    const match = all.find((u) => u.id === id)
+    return match ? new UTAAccountSDK({ client: this.client, id: match.id, label: match.label }) : undefined
   }
 
   async has(id: string): Promise<boolean> {
@@ -116,6 +117,14 @@ export class UTAManagerSDK {
 
   async getAggregatedEquity(): Promise<AggregatedEquity> {
     return this.client.get<AggregatedEquity>(`/api/trading/equity`)
+  }
+
+  /** USD FX rates for the currencies currently in use across all active
+   *  UTAs (collected server-side from positions + account base currency).
+   *  Used by the AI portfolio tool for cross-currency percentage math. */
+  async getFxRates(): Promise<Array<{ currency: string; rate: number; source: string; updatedAt: string }>> {
+    const res = await this.client.get<{ rates: Array<{ currency: string; rate: number; source: string; updatedAt: string }> }>(`/api/trading/fx-rates`)
+    return res.rates
   }
 
   // ==================== Lifecycle — via Guardian restart ====================

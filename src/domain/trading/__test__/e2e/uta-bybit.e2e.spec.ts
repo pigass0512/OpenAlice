@@ -133,7 +133,7 @@ describe('UTA — Bybit lifecycle (ETH perp)', () => {
   it('AI tools: searchContracts → getQuote round-trips with a real aliceId', async () => {
     const mgr = new UTAManager()
     mgr.add(uta!)
-    const tools = createTradingTools(mgr)
+    const tools = createTradingTools(mgr as unknown as import('@/services/uta-client/index.js').UTAManagerSDK)
 
     // Step 1: search → get the canonical aliceId the AI would receive.
     const searchResult = await (tools.searchContracts.execute as Function)({
@@ -186,7 +186,7 @@ describe('UTA — Bybit lifecycle (ETH perp)', () => {
   it('AI tools: getContractDetails with aliceId returns spec', async () => {
     const mgr = new UTAManager()
     mgr.add(uta!)
-    const tools = createTradingTools(mgr)
+    const tools = createTradingTools(mgr as unknown as import('@/services/uta-client/index.js').UTAManagerSDK)
 
     const result = await (tools.getContractDetails.execute as Function)({
       source: uta!.id,

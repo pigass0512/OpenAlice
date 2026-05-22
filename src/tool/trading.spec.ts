@@ -5,6 +5,7 @@ import type { OpenOrder } from '../domain/trading/brokers/types.js'
 import { MockBroker, makeContract } from '../domain/trading/brokers/mock/index.js'
 import { UTAManager } from '../domain/trading/uta-manager.js'
 import { UnifiedTradingAccount } from '../domain/trading/UnifiedTradingAccount.js'
+import type { UTAManagerSDK } from '../services/uta-client/index.js'
 import { createTradingTools } from './trading.js'
 import '../domain/trading/contract-ext.js'
 
@@ -17,6 +18,17 @@ function makeManager(...brokers: MockBroker[]): UTAManager {
   for (const b of brokers) mgr.add(makeUta(b))
   return mgr
 }
+
+/**
+ * The tool layer accepts UTAManagerSDK (an HTTP adapter) after the
+ * Step-6 swap. For unit tests we still construct a real in-process
+ * UTAManager — its methods are a structural superset of the SDK's, so
+ * casting at the boundary keeps the tests honest about behaviour
+ * without requiring a mock fetch layer. The `getFxRates` SDK method is
+ * absent from real UTAManager; tool/trading.ts try/catches the call
+ * and falls through with empty rates, which the tests don't exercise.
+ */
+const asSDK = (mgr: UTAManager) => mgr as unknown as UTAManagerSDK
 
 // ==================== UTAManager.resolve ====================
 
@@ -74,7 +86,7 @@ describe('UTAManager.resolveOne', () => {
 describe('createTradingTools — listUTAs', () => {
   it('returns summaries for all registered UTAs', async () => {
     const mgr = makeManager(new MockBroker({ id: 'acc1', label: 'Test' }))
-    const tools = createTradingTools(mgr)
+    const tools = createTradingTools(asSDK(mgr))
     const result = await (tools.listUTAs.execute as Function)({})
     expect(Array.isArray(result)).toBe(true)
     expect(result[0].id).toBe('acc1')
@@ -95,7 +107,7 @@ describe('createTradingTools — searchContracts', () => {
     vi.spyOn(a2, 'searchContracts').mockResolvedValue([desc2])
 
     const mgr = makeManager(a1, a2)
-    const tools = createTradingTools(mgr)
+    const tools = createTradingTools(asSDK(mgr))
     const result = await (tools.searchContracts.execute as Function)({ pattern: 'AAPL' })
     expect(result).toHaveLength(2)
   })
@@ -127,7 +139,7 @@ describe('createTradingTools — getOrders summarization', () => {
     uta.commit('buy')
     await uta.push()
 
-    const tools = createTradingTools(mgr)
+    const tools = createTradingTools(asSDK(mgr))
     const ids = uta.getPendingOrderIds().map(p => p.orderId)
     // getPendingOrderIds may be empty after market fill — test the tool output shape instead
     const result = await (tools.getOrders.execute as Function)({ source: 'mock-paper' })
@@ -152,7 +164,7 @@ describe('createTradingTools — getOrders summarization', () => {
   it('filters UNSET values from order summary', async () => {
     const broker = new MockBroker({ id: 'mock-paper' })
     const mgr = makeManager(broker)
-    const tools = createTradingTools(mgr)
+    const tools = createTradingTools(asSDK(mgr))
 
     // Mock getOrders to return a raw OpenOrder with UNSET fields
     const uta = mgr.resolve('mock-paper')[0]
@@ -178,7 +190,7 @@ describe('createTradingTools — getOrders summarization', () => {
   it('includes non-UNSET optional fields', async () => {
     const broker = new MockBroker({ id: 'mock-paper' })
     const mgr = makeManager(broker)
-    const tools = createTradingTools(mgr)
+    const tools = createTradingTools(asSDK(mgr))
 
     const uta = mgr.resolve('mock-paper')[0]
     vi.spyOn(uta, 'getPendingOrderIds').mockReturnValue([{ orderId: 'ord-2', symbol: 'AAPL' }])
@@ -196,7 +208,7 @@ describe('createTradingTools — getOrders summarization', () => {
   it('emits price fields as decimal strings (not numbers)', async () => {
     const broker = new MockBroker({ id: 'mock-paper' })
     const mgr = makeManager(broker)
-    const tools = createTradingTools(mgr)
+    const tools = createTradingTools(asSDK(mgr))
 
     const uta = mgr.resolve('mock-paper')[0]
     vi.spyOn(uta, 'getPendingOrderIds').mockReturnValue([{ orderId: 'ord-1', symbol: 'ETH' }])
@@ -213,7 +225,7 @@ describe('createTradingTools — getOrders summarization', () => {
   it('preserves string orderId from getPendingOrderIds', async () => {
     const broker = new MockBroker({ id: 'mock-paper' })
     const mgr = makeManager(broker)
-    const tools = createTradingTools(mgr)
+    const tools = createTradingTools(asSDK(mgr))
 
     const uta = mgr.resolve('mock-paper')[0]
     vi.spyOn(uta, 'getPendingOrderIds').mockReturnValue([{ orderId: 'uuid-abc-123', symbol: 'AAPL' }])
@@ -227,7 +239,7 @@ describe('createTradingTools — getOrders summarization', () => {
   it('groupBy contract clusters orders by aliceId', async () => {
     const broker = new MockBroker({ id: 'mock-paper' })
     const mgr = makeManager(broker)
-    const tools = createTradingTools(mgr)
+    const tools = createTradingTools(asSDK(mgr))
 
     const uta = mgr.resolve('mock-paper')[0]
     vi.spyOn(uta, 'getPendingOrderIds').mockReturnValue([
@@ -258,7 +270,7 @@ describe('createTradingTools — getQuote', () => {
   it('resolves aliceId via UTA so broker sees a contract with native fields', async () => {
     const broker = new MockBroker({ id: 'mock-paper' })
     const spy = vi.spyOn(broker, 'getQuote')
-    const tools = createTradingTools(makeManager(broker))
+    const tools = createTradingTools(asSDK(makeManager(broker)))
 
     const result = await (tools.getQuote.execute as Function)({ aliceId: 'mock-paper|AAPL' })
 
@@ -273,7 +285,7 @@ describe('createTradingTools — getQuote', () => {
 
   it('returns error on malformed aliceId', async () => {
     const broker = new MockBroker({ id: 'mock-paper' })
-    const tools = createTradingTools(makeManager(broker))
+    const tools = createTradingTools(asSDK(makeManager(broker)))
     const result = await (tools.getQuote.execute as Function)({ aliceId: 'no-separator-here' })
     expect(result.error).toMatch(/Invalid aliceId/)
   })
@@ -283,7 +295,7 @@ describe('createTradingTools — getQuote', () => {
     const a2 = new MockBroker({ id: 'bybit-main' })
     const spy1 = vi.spyOn(a1, 'getQuote')
     const spy2 = vi.spyOn(a2, 'getQuote')
-    const tools = createTradingTools(makeManager(a1, a2))
+    const tools = createTradingTools(asSDK(makeManager(a1, a2)))
 
     await (tools.getQuote.execute as Function)({ aliceId: 'bybit-main|BTC' })
 
@@ -298,7 +310,7 @@ describe('createTradingTools — getContractDetails', () => {
   it('expands aliceId via UTA before calling broker.getContractDetails', async () => {
     const broker = new MockBroker({ id: 'mock-paper' })
     const spy = vi.spyOn(broker, 'getContractDetails')
-    const tools = createTradingTools(makeManager(broker))
+    const tools = createTradingTools(asSDK(makeManager(broker)))
 
     await (tools.getContractDetails.execute as Function)({
       source: 'mock-paper',
@@ -313,7 +325,7 @@ describe('createTradingTools — getContractDetails', () => {
 
   it('returns error on cross-UTA aliceId mismatch', async () => {
     const broker = new MockBroker({ id: 'mock-paper' })
-    const tools = createTradingTools(makeManager(broker))
+    const tools = createTradingTools(asSDK(makeManager(broker)))
     const result = await (tools.getContractDetails.execute as Function)({
       source: 'mock-paper',
       aliceId: 'other-account|AAPL',
@@ -332,7 +344,7 @@ describe('placeOrder inputSchema', () => {
   // reported 2026-05-12).
   it('treats empty-string optional numeric fields as omitted', () => {
     const broker = new MockBroker({ id: 'mock-paper' })
-    const tools = createTradingTools(makeManager(broker))
+    const tools = createTradingTools(asSDK(makeManager(broker)))
 
     const result = (tools.placeOrder.inputSchema as any).safeParse({
       source: 'mock-paper',
@@ -355,7 +367,7 @@ describe('placeOrder inputSchema', () => {
 
   it('still rejects non-empty invalid numerics', () => {
     const broker = new MockBroker({ id: 'mock-paper' })
-    const tools = createTradingTools(makeManager(broker))
+    const tools = createTradingTools(asSDK(makeManager(broker)))
 
     const result = (tools.placeOrder.inputSchema as any).safeParse({
       source: 'mock-paper',

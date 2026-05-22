@@ -1,7 +1,5 @@
 import type { QueryExecutor } from '@traderalice/opentypebb'
-import type { UTAManager } from '../domain/trading/index.js'
-import type { FxService } from '../domain/trading/fx-service.js'
-import type { SnapshotService } from '../domain/trading/snapshot/index.js'
+import type { UTAManagerSDK } from '../services/uta-client/index.js'
 import type { INewsProvider } from '../domain/news/types.js'
 import type { MarketSearchDeps } from '../domain/market-data/aggregate-search.js'
 import type { CronEngine } from '../task/cron/engine.js'
@@ -57,10 +55,12 @@ export interface EngineContext {
    *  AI tool (marketSearchForResearch) and the /api/market/search HTTP route. */
   marketSearch: MarketSearchDeps
 
-  // Trading (unified account model)
-  utaManager: UTAManager
-  fxService: FxService
-  snapshotService?: SnapshotService
+  // Trading — HTTP-backed SDK that talks to the co-located UTA service.
+  // FxService and SnapshotService live entirely inside UTA after Step 6;
+  // anything Alice used to read off `ctx.fxService` / `ctx.snapshotService`
+  // now goes through the SDK (e.g. `await utaManager.getAggregatedEquity()`
+  // for FX-converted totals).
+  utaManager: UTAManagerSDK
   newsProvider?: INewsProvider
   /** Reconnect connector plugins (Telegram, MCP-Ask, etc.). */
   reconnectConnectors: () => Promise<ReconnectResult>
