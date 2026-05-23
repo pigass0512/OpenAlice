@@ -159,10 +159,19 @@ export async function listSessions(): Promise<SessionRecord[]> {
 }
 
 /**
- * Internal: drop the on-disk file and reset cache. Used by tests + by the
- * recovery path "delete sessions.json + restart."
+ * Internal: clear in-process cache so the next read forces a reload
+ * from disk. Test-only — needed to verify that persistence actually
+ * goes through the file. Does NOT remove the file itself.
  */
 export async function _reset(): Promise<void> {
   cache = null
+}
+
+/**
+ * Internal: drop the on-disk file. Test setup uses this directly to
+ * start each test from a clean slate; the recovery path "delete
+ * sessions.json + restart" achieves the same effect at the OS level.
+ */
+export async function _unlinkFile(): Promise<void> {
   await unlink(SESSIONS_FILE()).catch(() => { /* fine */ })
 }

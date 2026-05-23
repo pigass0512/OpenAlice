@@ -1,0 +1,256 @@
+/**
+ * Auth middleware unit tests.
+ *
+ * Targets the in-process logic of `createAuthMiddleware` against the
+ * playbook-defined cases in safe/playbooks/01-03. Uses Hono's test
+ * client (no real HTTP server). The Node socket-level remoteAddress
+ * is fed via a mocked `c.env.incoming.socket.remoteAddress`.
+ */
+
+import { describe, it, expect, beforeEach } from 'vitest'
+import { Hono } from 'hono'
+import {
+  createAuthMiddleware,
+  isLoopbackIp,
+  SESSION_COOKIE_NAME,
+} from './auth.js'
+import {
+  createSession,
+  revokeAllSessions,
+  _reset,
+} from '@/services/auth/session-store.js'
+
+function makeApp(opts: Parameters<typeof createAuthMiddleware>[0]) {
+  const app = new Hono()
+  app.use('*', createAuthMiddleware(opts))
+  app.get('/api/trading/uta', (c) => c.json({ utas: [] }))
+  app.post('/api/trading/uta/x/wallet/push', (c) => c.json({ ok: true }))
+  app.get('/api/version', (c) => c.json({ ok: true }))
+  app.post('/api/auth/login', (c) => c.json({ ok: true }))
+  return app
+}
+
+function envWithIp(ip: string | undefined) {
+  return { incoming: { socket: { remoteAddress: ip } } }
+}
+
+beforeEach(async () => {
+  await _reset()
+  await revokeAllSessions()
+})
+
+describe('isLoopbackIp', () => {
+  it('accepts 127.0.0.1', () => expect(isLoopbackIp('127.0.0.1')).toBe(true))
+  it('accepts ::1', () => expect(isLoopbackIp('::1')).toBe(true))
+  it('accepts IPv4-mapped IPv6 loopback', () => {
+    expect(isLoopbackIp('::ffff:127.0.0.1')).toBe(true)
+    expect(isLoopbackIp('::ffff:127.0.0.5')).toBe(true)
+  })
+  it('accepts the entire 127.0.0.0/8 range', () => {
+    expect(isLoopbackIp('127.0.0.5')).toBe(true)
+    expect(isLoopbackIp('127.1.2.3')).toBe(true)
+  })
+  it('rejects public IPs', () => {
+    expect(isLoopbackIp('203.0.113.5')).toBe(false)
+    expect(isLoopbackIp('8.8.8.8')).toBe(false)
+  })
+  it('rejects RFC1918 private but non-loopback', () => {
+    expect(isLoopbackIp('192.168.1.5')).toBe(false)
+    expect(isLoopbackIp('10.0.0.5')).toBe(false)
+  })
+  it('strips IPv6 zone suffix', () => {
+    expect(isLoopbackIp('::1%lo0')).toBe(true)
+  })
+  it('rejects empty / undefined', () => {
+    expect(isLoopbackIp('')).toBe(false)
+  })
+})
+
+describe('auth middleware — playbook 01 (auth bypass)', () => {
+  it('01.1: GET /api/trading/uta without cookie from non-localhost → 401', async () => {
+    const app = makeApp({ trustedProxies: [], csrfTrustedOrigins: [] })
+    const res = await app.request('/api/trading/uta', undefined, envWithIp('203.0.113.5'))
+    expect(res.status).toBe(401)
+  })
+
+  it('01.2: POST mutation without cookie from non-localhost → 401', async () => {
+    const app = makeApp({ trustedProxies: [], csrfTrustedOrigins: [] })
+    const res = await app.request('/api/trading/uta/x/wallet/push', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: '{}',
+    }, envWithIp('203.0.113.5'))
+    expect(res.status).toBe(401)
+  })
+
+  it('01.3: forged cookie → 401', async () => {
+    const app = makeApp({ trustedProxies: [], csrfTrustedOrigins: [] })
+    const res = await app.request('/api/trading/uta', {
+      headers: { cookie: `${SESSION_COOKIE_NAME}=clearly-not-real` },
+    }, envWithIp('203.0.113.5'))
+    expect(res.status).toBe(401)
+  })
+
+  it('valid session cookie → 200', async () => {
+    const session = await createSession()
+    const app = makeApp({ trustedProxies: [], csrfTrustedOrigins: [] })
+    const res = await app.request('/api/trading/uta', {
+      headers: { cookie: `${SESSION_COOKIE_NAME}=${session.sid}` },
+    }, envWithIp('203.0.113.5'))
+    expect(res.status).toBe(200)
+  })
+
+  it('localhost (true loopback) bypasses without cookie → 200', async () => {
+    const app = makeApp({ trustedProxies: [], csrfTrustedOrigins: [] })
+    const res = await app.request('/api/trading/uta', undefined, envWithIp('127.0.0.1'))
+    expect(res.status).toBe(200)
+  })
+
+  it('::1 bypasses without cookie → 200', async () => {
+    const app = makeApp({ trustedProxies: [], csrfTrustedOrigins: [] })
+    const res = await app.request('/api/trading/uta', undefined, envWithIp('::1'))
+    expect(res.status).toBe(200)
+  })
+
+  it('public route /api/version is accessible without cookie or localhost', async () => {
+    const app = makeApp({ trustedProxies: [], csrfTrustedOrigins: [] })
+    const res = await app.request('/api/version', undefined, envWithIp('203.0.113.5'))
+    expect(res.status).toBe(200)
+  })
+
+  it('public route /api/auth/login accessible without cookie', async () => {
+    const app = makeApp({ trustedProxies: [], csrfTrustedOrigins: [] })
+    const res = await app.request('/api/auth/login', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: '{}',
+    }, envWithIp('203.0.113.5'))
+    expect(res.status).toBe(200)  // public route reaches handler; handler validates token
+  })
+
+  it('empty cookie value treated as "no session" → 401', async () => {
+    const app = makeApp({ trustedProxies: [], csrfTrustedOrigins: [] })
+    const res = await app.request('/api/trading/uta', {
+      headers: { cookie: `${SESSION_COOKIE_NAME}=` },
+    }, envWithIp('203.0.113.5'))
+    expect(res.status).toBe(401)
+  })
+})
+
+describe('auth middleware — playbook 03 (localhost spoofing)', () => {
+  it('03.1: X-Forwarded-For: 127.0.0.1 from non-trusted proxy → ignored', async () => {
+    // No trusted proxy configured. Public IP attacker tries to spoof
+    // localhost via XFF header. Must NOT bypass.
+    const app = makeApp({ trustedProxies: [], csrfTrustedOrigins: [] })
+    const res = await app.request('/api/trading/uta', {
+      headers: { 'x-forwarded-for': '127.0.0.1' },
+    }, envWithIp('203.0.113.5'))
+    expect(res.status).toBe(401)
+  })
+
+  it('03.4: when trusted proxy is configured, localhost passthrough disabled entirely', async () => {
+    // With a trusted proxy configured, even a true-localhost socket
+    // remoteAddress doesn't grant bypass — because the trusted proxy IS
+    // at 127.0.0.1 from Alice's view, accepting localhost would let
+    // every public request through.
+    const app = makeApp({ trustedProxies: ['10.0.0.5'], csrfTrustedOrigins: [] })
+    const res = await app.request('/api/trading/uta', undefined, envWithIp('127.0.0.1'))
+    expect(res.status).toBe(401)
+  })
+
+  it('Host: localhost spoof does not grant bypass', async () => {
+    const app = makeApp({ trustedProxies: [], csrfTrustedOrigins: [] })
+    const res = await app.request('/api/trading/uta', {
+      headers: { host: 'localhost' },
+    }, envWithIp('203.0.113.5'))
+    expect(res.status).toBe(401)
+  })
+})
+
+describe('auth middleware — playbook 02 (CSRF)', () => {
+  it('02.1: cross-origin POST with bad Origin → 403', async () => {
+    const session = await createSession()
+    const app = makeApp({ trustedProxies: [], csrfTrustedOrigins: [] })
+    const res = await app.request('/api/trading/uta/x/wallet/push', {
+      method: 'POST',
+      headers: {
+        'cookie': `${SESSION_COOKIE_NAME}=${session.sid}`,
+        'origin': 'http://evil.example.com',
+        'host': 'localhost:47331',
+        'content-type': 'application/json',
+      },
+      body: '{}',
+    }, envWithIp('203.0.113.5'))
+    expect(res.status).toBe(403)
+  })
+
+  it('02.1+: same-origin POST passes Origin check', async () => {
+    const session = await createSession()
+    const app = makeApp({ trustedProxies: [], csrfTrustedOrigins: [] })
+    const res = await app.request('/api/trading/uta/x/wallet/push', {
+      method: 'POST',
+      headers: {
+        'cookie': `${SESSION_COOKIE_NAME}=${session.sid}`,
+        'origin': 'http://localhost:47331',
+        'host': 'localhost:47331',
+        'content-type': 'application/json',
+      },
+      body: '{}',
+    }, envWithIp('203.0.113.5'))
+    expect(res.status).toBe(200)
+  })
+
+  it('explicitly trusted Origin allowed cross-origin', async () => {
+    const session = await createSession()
+    const app = makeApp({
+      trustedProxies: [],
+      csrfTrustedOrigins: ['http://demo.openalice.io'],
+    })
+    const res = await app.request('/api/trading/uta/x/wallet/push', {
+      method: 'POST',
+      headers: {
+        'cookie': `${SESSION_COOKIE_NAME}=${session.sid}`,
+        'origin': 'http://demo.openalice.io',
+        'host': 'localhost:47331',
+        'content-type': 'application/json',
+      },
+      body: '{}',
+    }, envWithIp('203.0.113.5'))
+    expect(res.status).toBe(200)
+  })
+
+  it('CSRF check does NOT apply to GET (read-only)', async () => {
+    const session = await createSession()
+    const app = makeApp({ trustedProxies: [], csrfTrustedOrigins: [] })
+    const res = await app.request('/api/trading/uta', {
+      headers: {
+        'cookie': `${SESSION_COOKIE_NAME}=${session.sid}`,
+        'origin': 'http://evil.example.com',
+        'host': 'localhost:47331',
+      },
+    }, envWithIp('203.0.113.5'))
+    expect(res.status).toBe(200)  // GET is safe even with foreign Origin
+  })
+
+  it('mutating request without Origin header → allowed (CLI scenario)', async () => {
+    const session = await createSession()
+    const app = makeApp({ trustedProxies: [], csrfTrustedOrigins: [] })
+    const res = await app.request('/api/trading/uta/x/wallet/push', {
+      method: 'POST',
+      headers: {
+        'cookie': `${SESSION_COOKIE_NAME}=${session.sid}`,
+        'content-type': 'application/json',
+      },
+      body: '{}',
+    }, envWithIp('203.0.113.5'))
+    expect(res.status).toBe(200)
+  })
+})
+
+describe('auth middleware — bypass switch', () => {
+  it('disabled: true → no checks fire, any request passes', async () => {
+    const app = makeApp({ trustedProxies: [], csrfTrustedOrigins: [], disabled: true })
+    const res = await app.request('/api/trading/uta', undefined, envWithIp('203.0.113.5'))
+    expect(res.status).toBe(200)
+  })
+})
