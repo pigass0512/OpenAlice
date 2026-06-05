@@ -203,4 +203,34 @@ describe('EntityStore (JSONL persistence)', () => {
     expect((await fresh.list()).map((e) => e.name)).toEqual(['gev'])
     expect(await readdir(dir)).not.toContain('entities.jsonl.tmp')
   })
+
+  it('survives concurrent upserts with no lost writes or corruption', async () => {
+    // Pi runs tool calls in PARALLEL — so it fires many entity_upsert at once.
+    // Pre-fix this raced on the shared `${path}.tmp` (interleaved writes →
+    // corrupted file → "Unexpected token ','") and clobbered each other's
+    // read-modify-write snapshots. Serialized mutations must keep all of them.
+    const names = Array.from({ length: 25 }, (_, i) => `e${i}`)
+    await Promise.all(
+      names.map((n) => store.upsert({ name: n, type: 'topic', description: `desc, with comma ${n}` })),
+    )
+    const fresh = createEntityStore({ filePath: path })
+    const all = await fresh.list()
+    expect(all.map((e) => e.name).sort()).toEqual([...names].sort())
+    expect(await readdir(dir)).not.toContain('entities.jsonl.tmp')
+  })
+
+  it('tolerates a malformed line (skips it) and self-heals on the next write', async () => {
+    await writeFile(
+      path,
+      JSON.stringify({ name: 'good', description: 'ok', type: 'asset', createdAt: 1000 }) +
+        '\n,"type":"topic","createdAt":123}\n', // the exact corruption signature seen live
+      'utf-8',
+    )
+    // Reads no longer throw — the bad fragment is skipped, not fatal.
+    expect((await store.list()).map((e) => e.name)).toEqual(['good'])
+    // Next mutation atomically rewrites the file clean (bad line gone).
+    await store.upsert({ name: 'fresh-one', type: 'topic', description: 'x' })
+    const reopened = createEntityStore({ filePath: path })
+    expect((await reopened.list()).map((e) => e.name).sort()).toEqual(['fresh-one', 'good'])
+  })
 })

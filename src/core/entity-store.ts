@@ -99,6 +99,18 @@ export function createEntityStore(opts: EntityStoreOptions = {}): IEntityStore {
   const emitter = new EventEmitter()
   emitter.setMaxListeners(50)
 
+  // Serialize mutating ops so each read-modify-write-rename cycle is atomic for
+  // this store instance. Without it, concurrent upserts — which Pi triggers by
+  // running tool calls in PARALLEL — race on the shared `${filePath}.tmp`,
+  // interleaving bytes and corrupting the file (observed in the wild as
+  // "Unexpected token ','" on the next read), and clobber each other's writes.
+  let writeTail: Promise<unknown> = Promise.resolve()
+  function serialize<T>(op: () => Promise<T>): Promise<T> {
+    const result = writeTail.then(op, op)
+    writeTail = result.then(() => undefined, () => undefined)
+    return result
+  }
+
   async function readAll(): Promise<Entity[]> {
     let raw: string
     try {
@@ -109,10 +121,19 @@ export function createEntityStore(opts: EntityStoreOptions = {}): IEntityStore {
       }
       throw err
     }
-    return raw
-      .split('\n')
-      .filter((l) => l.trim())
-      .map((l) => JSON.parse(l) as Entity)
+    const out: Entity[] = []
+    for (const line of raw.split('\n')) {
+      if (!line.trim()) continue
+      try {
+        out.push(JSON.parse(line) as Entity)
+      } catch {
+        // Tolerate a malformed line instead of bricking every entity op. A
+        // corrupted line (e.g. left by a pre-fix concurrent-write interleave)
+        // is skipped here and dropped on the next atomic rewrite — self-healing.
+        console.warn('entity-store: skipping malformed line in', filePath)
+      }
+    }
+    return out
   }
 
   async function writeAll(entities: Entity[]): Promise<void> {
@@ -126,22 +147,24 @@ export function createEntityStore(opts: EntityStoreOptions = {}): IEntityStore {
   }
 
   async function upsert(input: EntityInput): Promise<Entity> {
-    validateInput(input)
-    const all = await readAll()
-    const k = keyOf(input.name)
-    const idx = all.findIndex((e) => keyOf(e.name) === k)
-    const existing = idx >= 0 ? all[idx] : undefined
-    const entity: Entity = {
-      name: input.name.trim(),
-      description: input.description.trim(),
-      type: input.type,
-      createdAt: existing?.createdAt ?? Date.now(),
-    }
-    if (idx >= 0) all[idx] = entity
-    else all.push(entity)
-    await writeAll(all)
-    emitter.emit('changed')
-    return entity
+    validateInput(input) // sync — fail fast, outside the write queue
+    return serialize(async () => {
+      const all = await readAll()
+      const k = keyOf(input.name)
+      const idx = all.findIndex((e) => keyOf(e.name) === k)
+      const existing = idx >= 0 ? all[idx] : undefined
+      const entity: Entity = {
+        name: input.name.trim(),
+        description: input.description.trim(),
+        type: input.type,
+        createdAt: existing?.createdAt ?? Date.now(),
+      }
+      if (idx >= 0) all[idx] = entity
+      else all.push(entity)
+      await writeAll(all)
+      emitter.emit('changed')
+      return entity
+    })
   }
 
   async function list(): Promise<Entity[]> {
@@ -160,13 +183,15 @@ export function createEntityStore(opts: EntityStoreOptions = {}): IEntityStore {
   }
 
   async function deleteEntity(name: string): Promise<boolean> {
-    const k = keyOf(name)
-    const all = await readAll()
-    const next = all.filter((e) => keyOf(e.name) !== k)
-    if (next.length === all.length) return false
-    await writeAll(next)
-    emitter.emit('changed')
-    return true
+    return serialize(async () => {
+      const k = keyOf(name)
+      const all = await readAll()
+      const next = all.filter((e) => keyOf(e.name) !== k)
+      if (next.length === all.length) return false
+      await writeAll(next)
+      emitter.emit('changed')
+      return true
+    })
   }
 
   function onChanged(listener: () => void): () => void {
