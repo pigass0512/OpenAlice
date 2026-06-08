@@ -23,6 +23,7 @@ import {
 import { api, type Preset } from '../../api'
 import { baseUrlToVendor, vendorPreset, presetModels } from '../../lib/presetHelpers'
 import { ModelCombobox } from '../credentials/PresetFields'
+import { useTestGate } from '../../lib/useTestGate'
 
 // The agent tab implies a default vendor when the baseUrl alone can't say:
 // claude → Anthropic, codex → OpenAI; opencode/pi run anything so they have no
@@ -93,25 +94,20 @@ function formToConfig(form: FormState, agent: AgentId): AgentConfig {
   return cfg
 }
 
-// Test result is per-tab so switching tabs doesn't lose the other agent's
-// verdict, AND each result is bound to the exact form snapshot it was tested
-// against — editing any field invalidates it (Save re-locks). This is the
-// "test-before-save" linkage: Save only enables when the *current* form has a
-// matching successful test.
-interface TestResult {
-  kind: 'pass' | 'fail'
-  snapshot: FormState
-  message: string  // model reply on pass, error on fail
-}
-
-function formsMatch(a: FormState, b: FormState, agent: AgentId): boolean {
-  return (
-    a.baseUrl === b.baseUrl &&
-    a.apiKey === b.apiKey &&
-    a.model === b.model &&
-    (agent !== 'codex' || a.wireApi === b.wireApi) &&
-    (agent !== 'claude' || a.authMode === b.authMode)
-  )
+// The test-before-save gate is shared with the credential vault via useTestGate
+// (one gate per tab so switching tabs keeps each agent's verdict). The gate binds
+// a result to the `key` it was tested against; editing any tested field changes
+// the key, so the result stops matching and Save re-locks. `testKey` lists
+// exactly the fields the probe covers (agent-specific: wireApi for codex,
+// authMode for claude).
+function testKey(form: FormState, agent: AgentId): string {
+  return [
+    form.baseUrl.trim(),
+    form.apiKey.trim(),
+    form.model.trim(),
+    agent === 'codex' ? form.wireApi : '',
+    agent === 'claude' ? form.authMode : '',
+  ].join('|')
 }
 
 export function WorkspaceAIConfigModal({ wsId, onClose }: Props) {
@@ -132,11 +128,11 @@ export function WorkspaceAIConfigModal({ wsId, onClose }: Props) {
   const [offerSaveCred, setOfferSaveCred] = useState(false)
   const [savingCred, setSavingCred] = useState(false)
   const [credFlash, setCredFlash] = useState<string | null>(null)
-  const [testing, setTesting] = useState(false)
-  const [claudeResult, setClaudeResult] = useState<TestResult | null>(null)
-  const [codexResult, setCodexResult] = useState<TestResult | null>(null)
-  const [opencodeResult, setOpencodeResult] = useState<TestResult | null>(null)
-  const [piResult, setPiResult] = useState<TestResult | null>(null)
+  // One test-gate per tab (hooks are unconditional + fixed-count).
+  const claudeGate = useTestGate()
+  const codexGate = useTestGate()
+  const opencodeGate = useTestGate()
+  const piGate = useTestGate()
   const [presets, setPresets] = useState<Preset[]>([])
 
   useEffect(() => {
@@ -167,10 +163,12 @@ export function WorkspaceAIConfigModal({ wsId, onClose }: Props) {
     const p = vendorPreset(vendor, presets)
     return p ? presetModels(p) : []
   }, [form.baseUrl, tab, presets])
-  const result = { claude: claudeResult, codex: codexResult, opencode: opencodeResult, pi: piResult }[tab]
-  const setResult = { claude: setClaudeResult, codex: setCodexResult, opencode: setOpencodeResult, pi: setPiResult }[tab]
-  const resultMatchesCurrent = !!result && formsMatch(result.snapshot, form, tab)
-  const testPassedForCurrent = result?.kind === 'pass' && resultMatchesCurrent
+  const gate = { claude: claudeGate, codex: codexGate, opencode: opencodeGate, pi: piGate }[tab]
+  const key = testKey(form, tab)
+  const testing = gate.testing
+  const result = gate.result
+  const resultMatchesCurrent = gate.matchesCurrent(key)
+  const testPassedForCurrent = gate.passedFor(key)
   const dirty = useMemo(() => {
     if (!bundle) return false
     const saved = bundle[tab]
@@ -262,37 +260,19 @@ export function WorkspaceAIConfigModal({ wsId, onClose }: Props) {
   const canTest =
     !!form.baseUrl.trim() && !!form.apiKey.trim() && !!form.model.trim()
 
-  const handleTest = async () => {
+  const handleTest = () => {
     if (!canTest) return
-    // Freeze the form snapshot at click time — async race protection: if the
-    // user starts editing while the request is in flight, the result we get
-    // back is still bound to *what was tested*, not what's currently typed.
-    const snapshot: FormState = {
-      baseUrl: form.baseUrl.trim(),
-      apiKey: form.apiKey.trim(),
-      model: form.model.trim(),
-      wireApi: form.wireApi,
-      authMode: form.authMode,
-    }
-    setTesting(true)
-    try {
-      const r = await testAgentConfig(wsId, tab, {
-        baseUrl: snapshot.baseUrl,
-        apiKey: snapshot.apiKey,
-        model: snapshot.model,
-        ...(tab === 'codex' ? { wireApi: snapshot.wireApi } : {}),
-        ...(tab === 'claude' ? { authMode: snapshot.authMode } : {}),
-      })
-      setResult(
-        r.ok
-          ? { kind: 'pass', snapshot, message: r.response ?? '' }
-          : { kind: 'fail', snapshot, message: r.error ?? 'unknown error' },
-      )
-    } catch (err) {
-      setResult({ kind: 'fail', snapshot, message: (err as Error).message })
-    } finally {
-      setTesting(false)
-    }
+    // The result is bound to `key` (the current form's tested fields). If the
+    // user edits mid-flight, the key no longer matches → Save stays locked.
+    void gate.run(key, () =>
+      testAgentConfig(wsId, tab, {
+        baseUrl: form.baseUrl.trim(),
+        apiKey: form.apiKey.trim(),
+        model: form.model.trim(),
+        ...(tab === 'codex' ? { wireApi: form.wireApi } : {}),
+        ...(tab === 'claude' ? { authMode: form.authMode } : {}),
+      }),
+    )
   }
 
   // Backdrop close uses onMouseDown (not onClick) so that text-selection
@@ -543,21 +523,21 @@ export function WorkspaceAIConfigModal({ wsId, onClose }: Props) {
               Testing…
             </div>
           )}
-          {!testing && result?.kind === 'pass' && resultMatchesCurrent && (
+          {!testing && result?.ok && resultMatchesCurrent && (
             <div className="rounded-md border border-green/40 bg-green/10 text-green text-[12px] px-3 py-2">
               <div className="font-medium mb-0.5">
                 Test passed — {tab === 'claude' ? 'Anthropic' : tab === 'opencode' || tab === 'pi' ? 'the provider' : 'OpenAI'} replied:
               </div>
               <div className="text-text whitespace-pre-wrap break-words font-mono text-[11.5px]">
-                {result.message || '(empty reply)'}
+                {result.response || '(empty reply)'}
               </div>
             </div>
           )}
-          {!testing && result?.kind === 'fail' && resultMatchesCurrent && (
+          {!testing && result && !result.ok && resultMatchesCurrent && (
             <div className="rounded-md border border-red/40 bg-red/10 text-red text-[12px] px-3 py-2">
               <div className="font-medium mb-0.5">Test failed:</div>
               <div className="whitespace-pre-wrap break-words font-mono text-[11.5px]">
-                {result.message}
+                {result.error}
               </div>
             </div>
           )}
