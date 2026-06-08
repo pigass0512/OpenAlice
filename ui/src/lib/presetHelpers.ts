@@ -9,11 +9,33 @@
  * its `models` → schema.model.oneOf (see src/ai-providers/presets.ts buildJsonSchema).
  */
 
-import type { Preset } from '../api'
+import type { Preset, SerializedWire, WireShape } from '../api'
 
 export interface LabeledOption {
   id: string
   label: string
+}
+
+// ==================== Wire shapes ====================
+
+/** The wire shapes a preset supports (each with its endpoint table). */
+export function presetWires(p: Preset | null | undefined): SerializedWire[] {
+  return p?.wires ?? []
+}
+
+/** The endpoints (region variants) for a given wire shape of a preset. */
+export function wireEndpoints(p: Preset | null | undefined, shape: WireShape): LabeledOption[] {
+  return presetWires(p).find((w) => w.shape === shape)?.endpoints ?? []
+}
+
+/** The shape a preset defaults to (its first declared wire). */
+export function defaultWireShape(p: Preset | null | undefined): WireShape | undefined {
+  return presetWires(p)[0]?.shape
+}
+
+/** Reverse lookup: which wire shape's endpoint list contains this baseUrl (for edit mode). */
+export function wireShapeForBaseUrl(p: Preset | null | undefined, baseUrl: string): WireShape | undefined {
+  return presetWires(p).find((w) => w.endpoints.some((e) => e.id === baseUrl))?.shape
 }
 
 function schemaProps(schema: Preset['schema']): Record<string, Record<string, unknown>> {
@@ -30,32 +52,9 @@ export function presetModels(p: Preset): LabeledOption[] {
   return oneOf(p.schema, 'model')
 }
 
-/** Enumerated endpoints (regions) for a preset, e.g. China / International. */
-export function presetEndpoints(p: Preset): LabeledOption[] {
-  return oneOf(p.schema, 'baseUrl')
-}
-
-/** The preset's default baseUrl (first endpoint / declared default), or ''. */
-export function presetBaseUrlDefault(p: Preset): string {
-  const f = schemaProps(p.schema)['baseUrl'] as { default?: string } | undefined
-  if (typeof f?.default === 'string') return f.default
-  return presetEndpoints(p)[0]?.id ?? ''
-}
-
 /** Only api-key presets belong in the credential vault — oauth ones log in via the CLI. */
 export function isApiKeyPreset(p: Preset): boolean {
   return 'apiKey' in schemaProps(p.schema)
-}
-
-/** Probe/request shape: agent-sdk backend → anthropic, everything else → openai. */
-export function presetShape(p: Preset): 'anthropic' | 'openai' {
-  const backend = (schemaProps(p.schema)['backend'] as { const?: string } | undefined)?.const
-  return backend === 'agent-sdk' ? 'anthropic' : 'openai'
-}
-
-/** Codex speaks the Responses API; openai-compatible gateways speak Chat Completions. */
-export function presetWireApi(p: Preset): 'chat' | 'responses' {
-  return p.id.startsWith('codex') ? 'responses' : 'chat'
 }
 
 /** Vendor tag stored on a credential, by preset id (api-key presets only). */

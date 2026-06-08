@@ -43,6 +43,8 @@ export type {
   Profile,
   AIBackend,
   Preset,
+  WireShape,
+  SerializedWire,
   JsonSchema,
   JsonSchemaProperty,
   ChatMessage,

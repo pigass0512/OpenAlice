@@ -10,9 +10,16 @@
  */
 
 import { z } from 'zod'
-import { PRESET_CATALOG, type PresetDef } from './preset-catalog.js'
+import { PRESET_CATALOG, WIRE_SHAPE_LABELS, type PresetDef, type WireShape } from './preset-catalog.js'
 
 // ==================== Serialized Preset (sent to frontend) ====================
+
+/** A wire shape + its endpoints, with a human label, for the create form. */
+export interface SerializedWire {
+  shape: WireShape
+  shapeLabel: string
+  endpoints: Array<{ id: string; label: string }>
+}
 
 export interface SerializedPreset {
   id: string
@@ -22,6 +29,8 @@ export interface SerializedPreset {
   hint?: string
   defaultName: string
   schema: Record<string, unknown>
+  /** Supported wire shapes × endpoints — drives the form's shape/region pickers. */
+  wires?: SerializedWire[]
 }
 
 // ==================== Schema post-processing ====================
@@ -62,4 +71,13 @@ export const BUILTIN_PRESETS: SerializedPreset[] = PRESET_CATALOG.map(def => ({
   hint: def.hint,
   defaultName: def.defaultName,
   schema: buildJsonSchema(def),
+  ...(def.wires
+    ? {
+        wires: def.wires.map((w) => ({
+          shape: w.shape,
+          shapeLabel: WIRE_SHAPE_LABELS[w.shape],
+          endpoints: w.endpoints.map((e) => ({ id: e.id, label: e.label })),
+        })),
+      }
+    : {}),
 }))

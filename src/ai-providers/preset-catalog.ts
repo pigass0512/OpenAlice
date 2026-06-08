@@ -27,6 +27,32 @@ export interface EndpointOption {
 }
 
 /**
+ * The wire protocol a runtime speaks to an endpoint. First-class because a
+ * provider often exposes the SAME key behind multiple, mutually-incompatible
+ * shapes (Anthropic Messages vs OpenAI Chat Completions vs OpenAI Responses),
+ * each at a different endpoint URL. Modelled as an open enum + a per-shape
+ * endpoint table (see `WireOption`) so the form is a registry lookup, never a
+ * boolean/ternary. Extensible (google-generative-ai etc.) when a runtime needs it.
+ */
+export type WireShape = 'anthropic' | 'openai-chat' | 'openai-responses'
+
+export interface WireOption {
+  shape: WireShape
+  /**
+   * Region/endpoint variants for THIS shape (e.g. China vs International).
+   * Empty ⇒ a single official endpoint with no region choice (the form then
+   * shows a free-text baseUrl that may be left blank for the default).
+   */
+  endpoints: EndpointOption[]
+}
+
+export const WIRE_SHAPE_LABELS: Record<WireShape, string> = {
+  anthropic: 'Anthropic (Messages)',
+  'openai-chat': 'OpenAI (Chat Completions)',
+  'openai-responses': 'OpenAI (Responses)',
+}
+
+/**
  * Adapter declaration block for a preset. `available` lists every SDK
  * adapter the preset's credential can drive, each with a builder that
  * maps the credential into that SDK's standard config shape.
@@ -50,6 +76,12 @@ export interface PresetDef {
   zodSchema: z.ZodType
   models?: ModelOption[]
   endpoints?: EndpointOption[]
+  /**
+   * Supported wire shapes × their endpoints. When set, the create-AI-config
+   * form offers a wire-shape selector that auto-fills the matching endpoint;
+   * supersedes the flat `endpoints` (which only ever described one shape).
+   */
+  wires?: WireOption[]
   writeOnlyFields?: string[]
   /** Internal — not exposed to the wizard JSON Schema. Drives the
    *  test-path adapter selection in GenerateRouter.askForTest. */
@@ -102,6 +134,7 @@ export const CLAUDE_API: PresetDef = {
     { id: 'claude-sonnet-4-6', label: 'Claude Sonnet 4.6' },
     { id: 'claude-haiku-4-5', label: 'Claude Haiku 4.5' },
   ],
+  wires: [{ shape: 'anthropic', endpoints: [] }],
   writeOnlyFields: ['apiKey'],
   sdkAdapters: {
     available: [
@@ -156,6 +189,13 @@ export const CODEX_API: PresetDef = {
     { id: 'gpt-5.4', label: 'GPT 5.4' },
     { id: 'gpt-5.4-mini', label: 'GPT 5.4 Mini' },
   ],
+  // Same key + base; the shape is how you call it. Responses is OpenAI's
+  // current API (what codex speaks); Chat Completions is the legacy shape
+  // opencode/pi use.
+  wires: [
+    { shape: 'openai-responses', endpoints: [] },
+    { shape: 'openai-chat', endpoints: [] },
+  ],
   writeOnlyFields: ['apiKey'],
   sdkAdapters: {
     available: [
@@ -184,6 +224,13 @@ export const GEMINI: PresetDef = {
     { id: 'gemini-3.5-flash', label: 'Gemini 3.5 Flash' },
     { id: 'gemini-3.1-flash-lite', label: 'Gemini 3.1 Flash-Lite' },
     { id: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro' },
+  ],
+  // Google's OpenAI-compatibility layer (the native google-generative-ai wire
+  // isn't a supported shape yet). Reachable by opencode/pi.
+  wires: [
+    { shape: 'openai-chat', endpoints: [
+      { id: 'https://generativelanguage.googleapis.com/v1beta/openai/', label: 'Google (OpenAI-compatible)' },
+    ] },
   ],
   writeOnlyFields: ['apiKey'],
   sdkAdapters: {
@@ -215,9 +262,15 @@ export const MINIMAX: PresetDef = {
     model: z.string().default('MiniMax-M3').describe('Model'),
     apiKey: z.string().min(1).describe('MiniMax API key'),
   }),
-  endpoints: [
-    { id: 'https://api.minimaxi.com/anthropic', label: 'China (minimaxi.com)' },
-    { id: 'https://api.minimax.io/anthropic', label: 'International (minimax.io)' },
+  wires: [
+    { shape: 'anthropic', endpoints: [
+      { id: 'https://api.minimaxi.com/anthropic', label: 'China (minimaxi.com)' },
+      { id: 'https://api.minimax.io/anthropic', label: 'International (minimax.io)' },
+    ] },
+    { shape: 'openai-chat', endpoints: [
+      { id: 'https://api.minimaxi.com/v1', label: 'China (minimaxi.com)' },
+      { id: 'https://api.minimax.io/v1', label: 'International (minimax.io)' },
+    ] },
   ],
   models: [
     { id: 'MiniMax-M3', label: 'MiniMax M3' },
@@ -252,9 +305,15 @@ export const GLM: PresetDef = {
     model: z.string().default('glm-5.1').describe('Model'),
     apiKey: z.string().min(1).describe('GLM API key'),
   }),
-  endpoints: [
-    { id: 'https://open.bigmodel.cn/api/anthropic', label: 'China (bigmodel.cn)' },
-    { id: 'https://api.z.ai/api/anthropic', label: 'International (z.ai)' },
+  wires: [
+    { shape: 'anthropic', endpoints: [
+      { id: 'https://open.bigmodel.cn/api/anthropic', label: 'China (bigmodel.cn)' },
+      { id: 'https://api.z.ai/api/anthropic', label: 'International (z.ai)' },
+    ] },
+    { shape: 'openai-chat', endpoints: [
+      { id: 'https://open.bigmodel.cn/api/paas/v4', label: 'China (bigmodel.cn)' },
+      { id: 'https://api.z.ai/api/paas/v4', label: 'International (z.ai)' },
+    ] },
   ],
   models: [
     { id: 'glm-5.1', label: 'GLM 5.1' },
@@ -293,9 +352,15 @@ export const KIMI: PresetDef = {
     model: z.string().default('kimi-k2.6').describe('Model'),
     apiKey: z.string().min(1).describe('Moonshot API key'),
   }),
-  endpoints: [
-    { id: 'https://api.moonshot.cn/anthropic', label: 'China (moonshot.cn)' },
-    { id: 'https://api.moonshot.ai/anthropic', label: 'International (moonshot.ai)' },
+  wires: [
+    { shape: 'anthropic', endpoints: [
+      { id: 'https://api.moonshot.cn/anthropic', label: 'China (moonshot.cn)' },
+      { id: 'https://api.moonshot.ai/anthropic', label: 'International (moonshot.ai)' },
+    ] },
+    { shape: 'openai-chat', endpoints: [
+      { id: 'https://api.moonshot.cn/v1', label: 'China (moonshot.cn)' },
+      { id: 'https://api.moonshot.ai/v1', label: 'International (moonshot.ai)' },
+    ] },
   ],
   models: [
     { id: 'kimi-k2.6', label: 'Kimi K2.6' },
@@ -328,8 +393,13 @@ export const DEEPSEEK: PresetDef = {
     model: z.string().default('deepseek-v4-pro').describe('Model'),
     apiKey: z.string().min(1).describe('DeepSeek API key'),
   }),
-  endpoints: [
-    { id: 'https://api.deepseek.com/anthropic', label: 'DeepSeek (api.deepseek.com)' },
+  wires: [
+    { shape: 'anthropic', endpoints: [
+      { id: 'https://api.deepseek.com/anthropic', label: 'DeepSeek (anthropic)' },
+    ] },
+    { shape: 'openai-chat', endpoints: [
+      { id: 'https://api.deepseek.com', label: 'DeepSeek (OpenAI-compatible)' },
+    ] },
   ],
   models: [
     { id: 'deepseek-v4-pro', label: 'DeepSeek V4 Pro (flagship)' },
@@ -363,6 +433,11 @@ export const CUSTOM: PresetDef = {
     baseUrl: z.string().optional().describe('Custom API endpoint (leave empty for official)'),
     apiKey: z.string().optional().describe('API key'),
   }),
+  wires: [
+    { shape: 'anthropic', endpoints: [] },
+    { shape: 'openai-chat', endpoints: [] },
+    { shape: 'openai-responses', endpoints: [] },
+  ],
   writeOnlyFields: ['apiKey'],
 }
 

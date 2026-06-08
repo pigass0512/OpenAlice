@@ -1,5 +1,5 @@
 import { headers } from './client'
-import type { AppConfig, Profile, Preset, Credential, SdkAdapterInfo } from './types'
+import type { AppConfig, Profile, Preset, Credential, SdkAdapterInfo, WireShape } from './types'
 
 export const configApi = {
   async load(): Promise<AppConfig> {
@@ -134,12 +134,11 @@ export const configApi = {
   },
 
   async testCredential(input: {
-    shape: 'anthropic' | 'openai'
+    wireShape: WireShape
     baseUrl?: string
     apiKey: string
     model: string
     authMode?: 'x-api-key' | 'bearer'
-    wireApi?: 'chat' | 'responses'
   }): Promise<{ ok: boolean; response?: string; error?: string }> {
     const res = await fetch('/api/config/credentials/test', { method: 'POST', headers, body: JSON.stringify(input) })
     return res.json()

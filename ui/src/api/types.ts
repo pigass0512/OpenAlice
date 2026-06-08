@@ -68,6 +68,14 @@ export interface SdkAdapterInfo {
 
 // ==================== AI Provider Presets ====================
 
+export type WireShape = 'anthropic' | 'openai-chat' | 'openai-responses'
+
+export interface SerializedWire {
+  shape: WireShape
+  shapeLabel: string
+  endpoints: Array<{ id: string; label: string }>
+}
+
 export interface Preset {
   id: string
   label: string
@@ -76,6 +84,8 @@ export interface Preset {
   hint?: string
   defaultName: string
   schema: JsonSchema
+  /** Supported wire shapes × endpoints — drives the create form's shape/region pickers. */
+  wires?: SerializedWire[]
 }
 
 /** Subset of JSON Schema types we use for form rendering. */

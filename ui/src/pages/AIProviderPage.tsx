@@ -15,16 +15,17 @@
  */
 
 import { useState, useEffect, useMemo } from 'react'
-import { api, type Preset } from '../api'
+import { api, type Preset, type WireShape } from '../api'
 import type { CredentialSummary } from '../api/config'
 import { PageHeader } from '../components/PageHeader'
 import { PageLoading } from '../components/StateViews'
 import { Field, inputClass } from '../components/form'
 import { EndpointField, ModelCombobox } from '../components/credentials/PresetFields'
 import {
-  VENDOR_BY_PRESET, isApiKeyPreset, presetShape, presetWireApi,
-  presetModels, presetEndpoints, presetBaseUrlDefault, vendorPreset,
+  VENDOR_BY_PRESET, isApiKeyPreset, presetModels, vendorPreset,
+  presetWires, wireEndpoints, defaultWireShape, wireShapeForBaseUrl,
 } from '../lib/presetHelpers'
+import { useTestGate } from '../lib/useTestGate'
 
 // ==================== Agent runtimes ====================
 //
@@ -239,54 +240,60 @@ function CredentialModal({ mode, cred, presets, onClose, onSaved }: {
   onClose: () => void
   onSaved: () => Promise<void>
 }) {
-  // In edit mode the vendor is fixed → resolve its preset up front; in add mode
-  // the user picks one from the grid first.
+  // In edit mode the vendor is fixed → resolve its preset + the wire shape that
+  // owns the stored endpoint; in add mode the user picks a provider first.
   const initialPreset = mode === 'edit' && cred ? vendorPreset(cred.vendor, presets) ?? null : null
   const [preset, setPreset] = useState<Preset | null>(initialPreset)
+  const [wireShape, setWireShape] = useState<WireShape | undefined>(
+    initialPreset ? (wireShapeForBaseUrl(initialPreset, cred?.baseUrl ?? '') ?? defaultWireShape(initialPreset)) : undefined,
+  )
   const [baseUrl, setBaseUrl] = useState(cred?.baseUrl ?? '')
   const [apiKey, setApiKey] = useState('')
   const [model, setModel] = useState('')
-  const [testing, setTesting] = useState(false)
-  const [testResult, setTestResult] = useState<{ ok: boolean; response?: string; error?: string } | null>(null)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
-
-  // When a preset is chosen (add mode), seed baseUrl + the test model.
-  const pickPreset = (p: Preset) => {
-    setPreset(p)
-    setBaseUrl(presetBaseUrlDefault(p))
-    setModel(presetModels(p)[0]?.id ?? '')
-    setTestResult(null)
-    setError('')
-  }
+  const gate = useTestGate()
 
   useEffect(() => {
     if (initialPreset && !model) setModel(presetModels(initialPreset)[0]?.id ?? '')
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  const pickPreset = (p: Preset) => {
+    const shape = defaultWireShape(p)
+    setPreset(p)
+    setWireShape(shape)
+    setBaseUrl(shape ? (wireEndpoints(p, shape)[0]?.id ?? '') : '')
+    setModel(presetModels(p)[0]?.id ?? '')
+    setError('')
+    gate.reset()
+  }
+
+  const changeWireShape = (shape: WireShape) => {
+    setWireShape(shape)
+    // Auto-fill the matching endpoint for the new shape (first region, or blank).
+    if (preset) setBaseUrl(wireEndpoints(preset, shape)[0]?.id ?? '')
+    setError('')
+  }
+
+  const wires = presetWires(preset)
+  const endpoints = preset && wireShape ? wireEndpoints(preset, wireShape) : []
   const models = preset ? presetModels(preset) : []
 
-  const handleTest = async () => {
-    if (!preset) return
-    const key = apiKey.trim() // edit mode may keep the stored key — can't test without re-entering
-    if (!key) { setError('Enter the API key to test'); return }
-    if (!model) { setError('Pick a model to test with'); return }
-    setError(''); setTestResult(null); setTesting(true)
-    try {
-      const result = await api.config.testCredential({
-        shape: presetShape(preset),
-        baseUrl: baseUrl.trim() || undefined,
-        apiKey: key,
-        model,
-        wireApi: presetWireApi(preset),
-      })
-      setTestResult(result)
-    } catch (err) {
-      setTestResult({ ok: false, error: err instanceof Error ? err.message : 'Test failed' })
-    } finally {
-      setTesting(false)
-    }
+  // The fields the test covers — editing any of them re-locks Save.
+  const testKey = `${wireShape ?? ''}|${baseUrl.trim()}|${apiKey.trim()}|${model.trim()}`
+  const canTest = !!apiKey.trim() && !!model.trim() && !!wireShape
+  // ADD must pass a test. EDIT keeping the stored key (key blank) can't be probed
+  // — it was verified at creation, so allow it; if a key is entered, re-test.
+  const needsTest = mode === 'add' || !!apiKey.trim()
+  const canSave = !saving && (!needsTest || gate.passedFor(testKey))
+
+  const handleTest = () => {
+    if (!canTest || !wireShape) { setError('Fill the API key + model first'); return }
+    setError('')
+    void gate.run(testKey, () =>
+      api.config.testCredential({ wireShape, baseUrl: baseUrl.trim() || undefined, apiKey: apiKey.trim(), model: model.trim() }),
+    )
   }
 
   const handleSave = async () => {
@@ -311,19 +318,21 @@ function CredentialModal({ mode, cred, presets, onClose, onSaved }: {
     }
   }
 
-  const title = mode === 'edit' && cred ? `Edit credential: ${cred.slug}` : 'Add credential'
+  const title = mode === 'edit' && cred ? `Edit credential · ${cred.slug}` : 'Add credential'
+  const tested = gate.passedFor(testKey)
+  const staleResult = gate.result && !gate.matchesCurrent(testKey)
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={onClose}>
-      <div className="bg-bg border border-border rounded-xl shadow-2xl w-full max-w-lg max-h-[82vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between p-4 border-b border-border">
+      <div className="bg-bg border border-border rounded-xl shadow-2xl w-full max-w-lg max-h-[85vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-5 py-4 border-b border-border">
           <h2 className="text-[15px] font-semibold text-text">{title}</h2>
           <button onClick={onClose} className="text-text-muted hover:text-text transition-colors">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-4 space-y-3">
+        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
           {!preset ? (
             <div className="grid grid-cols-2 gap-2">
               {presets.map((p) => (
@@ -339,12 +348,32 @@ function CredentialModal({ mode, cred, presets, onClose, onSaved }: {
             </div>
           ) : (
             <>
+              {/* Provider header with a change link (add mode) */}
+              <div className="flex items-center justify-between">
+                <div className="flex items-baseline gap-2">
+                  <span className="text-[13px] font-semibold text-text">{preset.label}</span>
+                  <span className="text-[11px] text-text-muted">{preset.description}</span>
+                </div>
+                {mode === 'add' && (
+                  <button onClick={() => { setPreset(null); gate.reset() }} className="text-[11px] text-accent hover:underline">change</button>
+                )}
+              </div>
+
               {preset.hint && (
-                <p className="text-[11px] text-text-muted bg-bg-tertiary rounded-lg p-3 leading-relaxed">{preset.hint}</p>
+                <p className="text-[11px] text-text-muted bg-bg-tertiary rounded-lg px-3 py-2.5 leading-relaxed">{preset.hint}</p>
               )}
 
-              <Field label={presetEndpoints(preset).length > 0 ? 'Endpoint / region' : 'Base URL (optional)'}>
-                <EndpointField value={baseUrl} endpoints={presetEndpoints(preset)} onChange={setBaseUrl} />
+              {/* Wire shape — only when the provider exposes more than one */}
+              {wires.length > 1 && (
+                <Field label="API mode" description="The provider exposes the same key behind multiple, incompatible wire shapes — pick the one your runtime speaks.">
+                  <select className={inputClass} value={wireShape ?? ''} onChange={(e) => changeWireShape(e.target.value as WireShape)}>
+                    {wires.map((w) => <option key={w.shape} value={w.shape}>{w.shapeLabel}</option>)}
+                  </select>
+                </Field>
+              )}
+
+              <Field label={endpoints.length > 0 ? 'Endpoint / region' : 'Base URL (optional)'}>
+                <EndpointField value={baseUrl} endpoints={endpoints} onChange={(v) => { setBaseUrl(v) }} />
               </Field>
 
               <Field label="API key">
@@ -353,33 +382,45 @@ function CredentialModal({ mode, cred, presets, onClose, onSaved }: {
                   spellCheck={false} autoCapitalize="off" autoCorrect="off" />
               </Field>
 
-              <Field label="Test model" description="Used only to verify the key — not stored on the credential.">
+              <Field label="Test model" description="Used only to verify the key — not stored on the credential (the model is chosen per workspace).">
                 <ModelCombobox value={model} suggestions={models} onChange={setModel} />
               </Field>
 
               {error && <p className="text-[12px] text-red">{error}</p>}
-              {testing && <p className="text-[12px] text-text-muted">Testing connection…</p>}
-              {testResult && (
-                <div className={`text-[12px] rounded-lg p-3 ${testResult.ok ? 'bg-green/10 text-green' : 'bg-red/10 text-red'}`}>
-                  {testResult.ok ? `Connected: "${testResult.response?.slice(0, 120)}"` : `Failed: ${testResult.error}`}
+              {gate.testing && <p className="text-[12px] text-text-muted">Testing connection…</p>}
+              {gate.result && !staleResult && (
+                <div className={`text-[12px] rounded-lg px-3 py-2.5 ${gate.result.ok ? 'bg-green/10 text-green' : 'bg-red/10 text-red'}`}>
+                  {gate.result.ok ? `Connected — “${gate.result.response?.slice(0, 120)}”` : `Failed: ${gate.result.error}`}
                 </div>
+              )}
+              {staleResult && (
+                <p className="text-[11px] text-yellow-400/90">Form changed since the last test — re-test before saving.</p>
               )}
             </>
           )}
         </div>
 
         {preset && (
-          <div className="flex items-center gap-2 p-3 border-t border-border">
-            <button onClick={handleSave} disabled={saving} className="btn-primary disabled:opacity-50">
-              {saving ? 'Saving…' : 'Save'}
+          <div className="flex items-center justify-between gap-2 px-5 py-3 border-t border-border bg-bg-secondary/30">
+            <button
+              onClick={handleTest}
+              disabled={gate.testing || !canTest}
+              title={!canTest ? 'Fill the API key + model first' : undefined}
+              className="text-[12px] px-3 py-1.5 rounded-md border border-border text-text-muted hover:text-text hover:bg-bg-tertiary transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              {gate.testing ? 'Testing…' : tested ? '✓ Tested' : 'Test'}
             </button>
-            <button onClick={handleTest} disabled={testing}
-              className="text-[12px] px-3 py-1.5 rounded-md border border-border text-text-muted hover:text-text hover:bg-bg-tertiary transition-colors disabled:opacity-50">
-              {testing ? 'Testing…' : 'Test'}
-            </button>
-            {mode === 'add' && (
-              <button onClick={() => setPreset(null)} className="text-[12px] px-3 py-1.5 rounded-md text-text-muted hover:text-text">Back</button>
-            )}
+            <div className="flex items-center gap-2">
+              <button onClick={onClose} className="text-[12px] px-3 py-1.5 rounded-md text-text-muted hover:text-text">Cancel</button>
+              <button
+                onClick={handleSave}
+                disabled={!canSave}
+                title={needsTest && !tested ? 'Test the connection first' : undefined}
+                className="btn-primary disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                {saving ? 'Saving…' : 'Save'}
+              </button>
+            </div>
           </div>
         )}
       </div>
