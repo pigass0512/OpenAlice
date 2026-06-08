@@ -2,12 +2,19 @@ import { Hono } from 'hono'
 import {
   loadConfig, writeConfigSection, readAIProviderConfig, validSections,
   writeProfile, deleteProfile, setActiveProfile,
-  profileSchema, type ConfigSection, type Profile,
+  readCredentials, addCredential, deleteCredential, writeCredential, resolveCredential,
+  profileSchema, credentialVendorEnum,
+  type ConfigSection, type Profile, type Credential,
 } from '../../core/config.js'
 import type { EngineContext } from '../../core/types.js'
 import { BUILTIN_PRESETS } from '../../ai-providers/presets.js'
 import { getSdkAdapterInfo } from '../../ai-providers/sdk-adapters.js'
 import { testWithProfile } from '../../core/ai-config.js'
+import { resolveAnthropicAuthMode } from '../../core/credential-inference.js'
+import { probeAnthropic, probeOpenAI } from '../../workspaces/agent-probe.js'
+
+const DEFAULT_ANTHROPIC_BASE = 'https://api.anthropic.com'
+const DEFAULT_OPENAI_BASE = 'https://api.openai.com/v1'
 
 interface ConfigRouteOpts {
   ctx?: EngineContext
@@ -120,6 +127,110 @@ export function createConfigRoutes(opts?: ConfigRouteOpts) {
       const validated = profileSchema.parse(profileData)
       const result = await testWithProfile(opts.ctx.router, validated, 'Hi')
       return c.json({ ok: true, response: result.text })
+    } catch (err) {
+      return c.json({ ok: false, error: err instanceof Error ? err.message : String(err) })
+    }
+  })
+
+  // ==================== Credential Vault ====================
+  //
+  // Alice's central api-key credentials — the set injected into workspaces.
+  // Subscription logins (claude login / codex login) are NOT stored here; they
+  // live in the CLI's own auth. The list never returns the raw key (only
+  // whether one is set); Test runs the lightweight probe, not the in-process
+  // provider stack.
+
+  /** GET /credentials — list central credentials (key redacted). */
+  app.get('/credentials', async (c) => {
+    try {
+      const creds = await readCredentials()
+      const list = Object.entries(creds).map(([slug, cred]) => ({
+        slug,
+        vendor: cred.vendor,
+        authType: cred.authType,
+        baseUrl: cred.baseUrl ?? null,
+        hasApiKey: !!cred.apiKey,
+      }))
+      return c.json({ credentials: list })
+    } catch (err) {
+      return c.json({ error: String(err) }, 500)
+    }
+  })
+
+  /** POST /credentials — add an api-key credential (deduped). Returns slug. */
+  app.post('/credentials', async (c) => {
+    try {
+      const body = await c.req.json<{ vendor?: string; baseUrl?: string; apiKey?: string }>()
+      const apiKey = body.apiKey?.trim()
+      if (!apiKey) return c.json({ error: 'apiKey is required' }, 400)
+      const vendorParse = credentialVendorEnum.safeParse(body.vendor)
+      const cred: Credential = {
+        vendor: vendorParse.success ? vendorParse.data : 'custom',
+        authType: 'api-key',
+        apiKey,
+        ...(body.baseUrl?.trim() ? { baseUrl: body.baseUrl.trim() } : {}),
+      }
+      const slug = await addCredential(cred)
+      return c.json({ slug, vendor: cred.vendor }, 201)
+    } catch (err) {
+      return c.json({ error: String(err) }, 500)
+    }
+  })
+
+  /** PUT /credentials/:slug — update a credential. Empty apiKey keeps the existing key. */
+  app.put('/credentials/:slug', async (c) => {
+    try {
+      const slug = c.req.param('slug')
+      const body = await c.req.json<{ vendor?: string; baseUrl?: string; apiKey?: string }>()
+      const existing = await resolveCredential(slug)
+      const apiKey = body.apiKey?.trim() || existing.apiKey
+      const vendorParse = credentialVendorEnum.safeParse(body.vendor)
+      const cred: Credential = {
+        vendor: vendorParse.success ? vendorParse.data : existing.vendor,
+        authType: 'api-key',
+        ...(apiKey ? { apiKey } : {}),
+        ...(body.baseUrl?.trim() ? { baseUrl: body.baseUrl.trim() } : {}),
+      }
+      await writeCredential(slug, cred)
+      return c.json({ slug })
+    } catch (err) {
+      return c.json({ error: String(err) }, 400)
+    }
+  })
+
+  /** DELETE /credentials/:slug — remove (errors if a profile still references it). */
+  app.delete('/credentials/:slug', async (c) => {
+    try {
+      await deleteCredential(c.req.param('slug'))
+      return c.json({ success: true })
+    } catch (err) {
+      return c.json({ error: String(err) }, 400)
+    }
+  })
+
+  /** POST /credentials/test — probe a credential (shape decides anthropic vs openai). */
+  app.post('/credentials/test', async (c) => {
+    try {
+      const body = await c.req.json<{
+        shape: 'anthropic' | 'openai'
+        baseUrl?: string
+        apiKey: string
+        model: string
+        authMode?: 'x-api-key' | 'bearer'
+        wireApi?: 'chat' | 'responses'
+      }>()
+      if (!body.apiKey || !body.model) {
+        return c.json({ ok: false, error: 'apiKey and model are required' })
+      }
+      if (body.shape === 'anthropic') {
+        const baseUrl = body.baseUrl?.trim() || DEFAULT_ANTHROPIC_BASE
+        const authMode = resolveAnthropicAuthMode({ authMode: body.authMode, baseUrl })
+        const r = await probeAnthropic({ baseUrl, apiKey: body.apiKey, model: body.model, authMode })
+        return c.json({ ok: true, response: r.text })
+      }
+      const baseUrl = body.baseUrl?.trim() || DEFAULT_OPENAI_BASE
+      const r = await probeOpenAI({ baseUrl, apiKey: body.apiKey, model: body.model, wireApi: body.wireApi ?? 'chat' })
+      return c.json({ ok: true, response: r.text })
     } catch (err) {
       return c.json({ ok: false, error: err instanceof Error ? err.message : String(err) })
     }

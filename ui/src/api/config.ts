@@ -100,4 +100,58 @@ export const configApi = {
     }
   },
 
+  // ==================== Credential Vault ====================
+
+  async getCredentials(): Promise<{ credentials: CredentialSummary[] }> {
+    const res = await fetch('/api/config/credentials')
+    if (!res.ok) throw new Error('Failed to load credentials')
+    return res.json()
+  },
+
+  async addCredential(input: { vendor: string; baseUrl?: string; apiKey: string }): Promise<{ slug: string; vendor: string }> {
+    const res = await fetch('/api/config/credentials', { method: 'POST', headers, body: JSON.stringify(input) })
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ error: 'Failed to add credential' }))
+      throw new Error(err.error || 'Failed to add credential')
+    }
+    return res.json()
+  },
+
+  async updateCredential(slug: string, input: { vendor: string; baseUrl?: string; apiKey?: string }): Promise<void> {
+    const res = await fetch(`/api/config/credentials/${encodeURIComponent(slug)}`, { method: 'PUT', headers, body: JSON.stringify(input) })
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ error: 'Failed to update credential' }))
+      throw new Error(err.error || 'Failed to update credential')
+    }
+  },
+
+  async deleteCredential(slug: string): Promise<void> {
+    const res = await fetch(`/api/config/credentials/${encodeURIComponent(slug)}`, { method: 'DELETE' })
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ error: 'Failed to delete credential' }))
+      throw new Error(err.error || 'Failed to delete credential')
+    }
+  },
+
+  async testCredential(input: {
+    shape: 'anthropic' | 'openai'
+    baseUrl?: string
+    apiKey: string
+    model: string
+    authMode?: 'x-api-key' | 'bearer'
+    wireApi?: 'chat' | 'responses'
+  }): Promise<{ ok: boolean; response?: string; error?: string }> {
+    const res = await fetch('/api/config/credentials/test', { method: 'POST', headers, body: JSON.stringify(input) })
+    return res.json()
+  },
+
+}
+
+/** A central credential as the vault lists it — the raw key is never sent. */
+export interface CredentialSummary {
+  slug: string
+  vendor: string
+  authType: 'api-key' | 'subscription'
+  baseUrl: string | null
+  hasApiKey: boolean
 }
