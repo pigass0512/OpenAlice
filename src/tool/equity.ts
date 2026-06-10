@@ -126,9 +126,15 @@ If unsure about the symbol, use marketSearchForResearch to find it.`,
         limit: z.number().int().positive().optional().describe('Number of transactions to return (default: 20)'),
       }).meta({ examples: [{ symbol: 'AAPL', limit: 20 }] }),
       execute: async ({ symbol, limit }) => {
-        const params: Record<string, unknown> = { symbol, provider: 'fmp' }
+        const params: Record<string, unknown> = { symbol }
         if (limit) params.limit = limit
-        return await equityClient.getInsiderTrading(params)
+        // FMP first (CIKs + filing dates); keyless Yahoo Form-4 rows as
+        // fallback so the tool degrades instead of going dark.
+        try {
+          return await equityClient.getInsiderTrading({ ...params, provider: 'fmp' })
+        } catch {
+          return await equityClient.getInsiderTrading({ ...params, provider: 'yfinance' })
+        }
       },
     }),
 
