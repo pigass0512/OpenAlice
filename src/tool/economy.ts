@@ -24,6 +24,7 @@ import type { EconomyClientLike, CommodityClientLike } from '@/domain/market-dat
 const FRED_PROVIDER = 'federal_reserve'
 const EIA_PROVIDER = 'eia'
 const BLS_PROVIDER = 'bls'
+const OECD_PROVIDER = 'oecd'
 
 export function createEconomyTools(
   economyClient: EconomyClientLike,
@@ -211,6 +212,67 @@ economyEnergyOutlook.`,
         if (start_date !== undefined) params.start_date = start_date
         if (end_date !== undefined) params.end_date = end_date
         return await commodityClient.getPetroleumStatus(params)
+      },
+    }),
+
+    economyCountryCpi: tool({
+      description: `Get CPI inflation for a specific country (OECD data, keyless).
+
+Returns monthly observations; with the default transform "yoy" the value is the
+year-over-year inflation rate IN PERCENT (3.81 = +3.81%). transform "period" gives
+month-over-month, "index" the raw index level.
+
+Covers ~36 countries: united_states, china, japan, germany, united_kingdom, france,
+india, brazil, south_korea, canada, australia, mexico, turkey, indonesia, and other
+OECD members (snake_case names).`,
+      inputSchema: z.object({
+        country: z.string().describe('Country slug, e.g. "united_states", "china", "japan"'),
+        transform: z.enum(['yoy', 'period', 'index']).optional().describe('Default "yoy" — year-over-year percent'),
+        start_date: z.string().optional().describe('Start date YYYY-MM-DD (optional)'),
+      }).meta({ examples: [{ country: 'china' }] }),
+      execute: async ({ country, transform, start_date }) => {
+        const params: Record<string, unknown> = { country, provider: OECD_PROVIDER, transform: transform ?? 'yoy', frequency: 'monthly' }
+        if (start_date !== undefined) params.start_date = start_date
+        return await economyClient.getCPI(params)
+      },
+    }),
+
+    economyCountryRates: tool({
+      description: `Get a country's interest rates (OECD data, keyless).
+
+duration "short" = 3-month interbank rate (the policy-rate proxy), "long" = 10-year
+government bond yield. IMPORTANT: values are DECIMAL FRACTIONS — 0.0372 means 3.72%.
+
+Same country coverage as economyCountryCpi (snake_case names).`,
+      inputSchema: z.object({
+        country: z.string().describe('Country slug, e.g. "united_states", "japan"'),
+        duration: z.enum(['short', 'long']).optional().describe('Default "short" (3M interbank); "long" = 10Y govt yield'),
+        start_date: z.string().optional().describe('Start date YYYY-MM-DD (optional)'),
+      }).meta({ examples: [{ country: 'japan', duration: 'long' }] }),
+      execute: async ({ country, duration, start_date }) => {
+        const params: Record<string, unknown> = { country, provider: OECD_PROVIDER, duration: duration ?? 'short' }
+        if (start_date !== undefined) params.start_date = start_date
+        return await economyClient.getInterestRates(params)
+      },
+    }),
+
+    economyLeadingIndicator: tool({
+      description: `Get the OECD Composite Leading Indicator (CLI) for a country or group.
+
+The CLI anticipates turning points in economic activity ~6-9 months ahead.
+100 = long-term trend; above and rising = expansion, below and falling = downturn.
+Monthly observations.
+
+country accepts a country slug ("united_states", "china") or a group ("g20", "g7").`,
+      inputSchema: z.object({
+        country: z.string().optional().describe('Country slug or group (default "g20")'),
+        start_date: z.string().optional().describe('Start date YYYY-MM-DD (optional)'),
+      }).meta({ examples: [{ country: 'united_states' }] }),
+      execute: async ({ country, start_date }) => {
+        const params: Record<string, unknown> = { provider: OECD_PROVIDER }
+        if (country !== undefined) params.country = country
+        if (start_date !== undefined) params.start_date = start_date
+        return await economyClient.getCompositeLeadingIndicator(params)
       },
     }),
   }

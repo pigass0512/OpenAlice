@@ -187,6 +187,13 @@ export const zhHant: Resources = {
     valCape: '席勒 PE(CAPE)',
     valEarningsYield: '盈餘殖利率',
     valDividendYield: '股息殖利率',
+    boardGlobalMacro: '全球宏觀',
+    globalMacroSubtitle: '跨國通膨、短端利率與 OECD 領先指標對比。',
+    colCountry: '國家',
+    colCpiYoy: 'CPI 年增率',
+    colShortRate: '短端利率(3M)',
+    colCli: 'CLI',
+    globalMacroNote: 'CLI:100 = 長期趨勢;高於且上行 = 擴張。游標停留可見觀測日期。',
   },
   portfolio: {
     overview: '總覽',

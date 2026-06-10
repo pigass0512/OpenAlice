@@ -190,6 +190,13 @@ export const en = {
     valCape: 'Shiller PE (CAPE)',
     valEarningsYield: 'Earnings Yield',
     valDividendYield: 'Dividend Yield',
+    boardGlobalMacro: 'Global Macro',
+    globalMacroSubtitle: 'Cross-country inflation, short rates and the OECD leading indicator.',
+    colCountry: 'Country',
+    colCpiYoy: 'CPI YoY',
+    colShortRate: 'Short rate (3M)',
+    colCli: 'CLI',
+    globalMacroNote: 'CLI: 100 = long-term trend; above and rising = expansion. Hover a cell for the observation date.',
   },
   portfolio: {
     overview: 'Overview',

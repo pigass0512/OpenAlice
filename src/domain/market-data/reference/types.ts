@@ -20,6 +20,7 @@ import type {
 // Type-only circular imports (these modules import ReferenceMeta) — fine in TS.
 import type { TermStructureBoard } from './term-structure.js'
 import type { ValuationStrip } from './valuation.js'
+import type { GlobalMacroBoard } from './global-macro.js'
 
 /** Envelope on every reference payload. Provider is an explicit label —
  *  same philosophy as the bar layer's sourceId: annotate the source,
@@ -108,4 +109,7 @@ export interface ReferenceDataService {
   /** S&P 500 valuation strip (PE / CAPE / earnings yield / dividend
    *  yield) from multpl — keyless. Requires the typebb-sdk backend. */
   valuation(): Promise<ValuationStrip>
+  /** Cross-country comparison (CPI YoY / short rate / CLI) from OECD —
+   *  keyless. Cell-level failures are annotated, total failure throws. */
+  globalMacro(): Promise<GlobalMacroBoard>
 }

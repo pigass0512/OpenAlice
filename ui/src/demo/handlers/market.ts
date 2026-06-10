@@ -6,7 +6,7 @@ import {
   demoSectorRotation,
 } from '../fixtures/market'
 import type { BarSourceCandidate, BarMeta } from '../../api/market'
-import type { MoversBoard, MoverRow, CalendarBoard, MacroBoard, MacroSeriesCard, TermStructureBoard, ValuationStrip } from '../../api/reference'
+import type { MoversBoard, MoverRow, CalendarBoard, MacroBoard, MacroSeriesCard, TermStructureBoard, ValuationStrip, GlobalMacroBoard } from '../../api/reference'
 
 const AAPL = 'AAPL'
 
@@ -40,6 +40,7 @@ export const marketHandlers = [
   http.get('/api/reference/macro', () => HttpResponse.json(demoMacro)),
   http.get('/api/reference/term-structure', () => HttpResponse.json(demoTermStructure)),
   http.get('/api/reference/valuation', () => HttpResponse.json(demoValuation)),
+  http.get('/api/reference/global-macro', () => HttpResponse.json(demoGlobalMacro)),
 
   // ---- federated bars (multi-source K-lines) ----
   // AAPL has two demo sources so the source picker is exercised.
@@ -191,4 +192,22 @@ const demoValuation: ValuationStrip = {
     macroCard('dividend_yield_month', 'Dividend Yield', 'percent', 1.25, -0.001),
   ],
   meta: { provider: 'multpl', asOf: '2026-06-10T13:30:00.000Z' },
+}
+
+function gmRow(country: string, label: string, cpi: number | null, rate: number | null, cli: number | null): GlobalMacroBoard['rows'][number] {
+  const cell = (value: number | null) => (value == null ? { value: null, date: null, error: 'no data' } : { value, date: '2026-04-01' })
+  return { country, label, cpiYoy: cell(cpi), shortRate: cell(rate), cli: cell(cli) }
+}
+
+const demoGlobalMacro: GlobalMacroBoard = {
+  rows: [
+    gmRow('united_states', 'United States', 3.1, 3.9, 100.9),
+    gmRow('china', 'China', 1.2, 1.6, 101.5),
+    gmRow('japan', 'Japan', 2.4, 0.6, 100.2),
+    gmRow('germany', 'Germany', 2.2, 2.1, 99.6),
+    gmRow('united_kingdom', 'United Kingdom', 2.8, 4.1, 99.9),
+    gmRow('india', 'India', 4.6, 6.4, null),
+    gmRow('brazil', 'Brazil', 4.1, 10.2, 100.4),
+  ],
+  meta: { provider: 'oecd', asOf: '2026-06-10T13:30:00.000Z' },
 }

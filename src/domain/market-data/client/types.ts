@@ -28,9 +28,10 @@ import type {
   OptionsChainsData, OptionsSnapshotsData, OptionsUnusualData,
   // Commodity
   CommoditySpotPriceData, PetroleumStatusReportData, ShortTermEnergyOutlookData,
-  // Economy (FRED + BLS)
+  // Economy (FRED + BLS + OECD)
   FredSearchData, FredSeriesData, FredRegionalData,
   BlsSearchData, BlsSeriesData,
+  ConsumerPriceIndexData, CountryInterestRatesData, CompositeLeadingIndicatorData,
 } from '@traderalice/opentypebb'
 
 export interface EquityClientLike {
@@ -101,6 +102,11 @@ export interface EconomyClientLike {
   // BLS — Bureau of Labor Statistics, mounted under /economy/survey/* upstream
   getBlsSearch(params: Record<string, unknown>): Promise<BlsSearchData[]>
   getBlsSeries(params: Record<string, unknown>): Promise<BlsSeriesData[]>
+  // OECD — cross-country comparison (keyless). Units differ per endpoint:
+  // CPI yoy comes back in percent, interest rates as fractions.
+  getCPI(params: Record<string, unknown>): Promise<ConsumerPriceIndexData[]>
+  getInterestRates(params?: Record<string, unknown>): Promise<CountryInterestRatesData[]>
+  getCompositeLeadingIndicator(params?: Record<string, unknown>): Promise<CompositeLeadingIndicatorData[]>
 }
 
 export interface DerivativesClientLike {

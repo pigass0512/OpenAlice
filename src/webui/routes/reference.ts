@@ -43,6 +43,15 @@ export function createReferenceRoutes(ctx: EngineContext): Hono {
     }
   })
 
+  // GET /api/reference/global-macro → cross-country CPI / rates / CLI (OECD)
+  app.get('/global-macro', async (c) => {
+    try {
+      return c.json(await ctx.reference.globalMacro())
+    } catch (err) {
+      return c.json({ error: err instanceof Error ? err.message : String(err) }, 502)
+    }
+  })
+
   // GET /api/reference/valuation → S&P 500 valuation strip (multpl)
   app.get('/valuation', async (c) => {
     try {

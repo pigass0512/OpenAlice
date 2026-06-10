@@ -7,6 +7,7 @@ import {
   referenceApi,
   type MoversBoard, type MoverRow, type ReferenceMeta, type CalendarBoard,
   type MacroBoard, type MacroSeriesCard, type TermStructureBoard, type TermCurve,
+  type GlobalMacroBoard, type GlobalMacroCell,
 } from '../api/reference'
 import { useWorkspace } from '../tabs/store'
 import type { ViewSpec } from '../tabs/types'
@@ -19,6 +20,7 @@ export const MARKET_BOARD_TITLES: Record<BoardKind, string> = {
   calendar: 'Calendar',
   macro: 'Macro',
   'term-structure': 'Term Structure',
+  'global-macro': 'Global Macro',
 }
 
 const REFRESH_MS = 5 * 60 * 1000
@@ -38,6 +40,8 @@ export function MarketBoardPage({ spec }: PageProps) {
       return <MacroBoardView />
     case 'term-structure':
       return <TermStructureBoardView />
+    case 'global-macro':
+      return <GlobalMacroBoardView />
   }
 }
 
@@ -532,6 +536,95 @@ function TermCurveCard({ curve }: { curve: TermCurve }) {
         )}
       </div>
     </div>
+  )
+}
+
+// ==================== Global macro ====================
+
+function GlobalMacroBoardView() {
+  const { t } = useTranslation()
+  const [data, setData] = useState<GlobalMacroBoard | null>(null)
+  const [updatedAt, setUpdatedAt] = useState<Date | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    let alive = true
+    const load = async () => {
+      try {
+        const res = await referenceApi.globalMacro()
+        if (!alive) return
+        setData(res)
+        setUpdatedAt(new Date())
+        setError(null)
+      } catch (err) {
+        if (!alive) return
+        setError(err instanceof Error ? err.message : 'Failed to load')
+      } finally {
+        if (alive) setLoading(false)
+      }
+    }
+    load()
+    const timer = setInterval(load, 60 * 60 * 1000)
+    return () => { alive = false; clearInterval(timer) }
+  }, [])
+
+  return (
+    <div className="flex flex-col flex-1 min-h-0">
+      <PageHeader
+        title={t('market.boardGlobalMacro')}
+        description={
+          <>
+            {t('market.globalMacroSubtitle')}
+            {data && <span className="text-text-muted/50"> · {data.meta.provider}</span>}
+          </>
+        }
+        live={{ lastUpdated: updatedAt }}
+      />
+      <div className="flex-1 overflow-y-auto px-4 md:px-8 py-4 min-h-0">
+        {loading && !data && <div className="text-[13px] text-text-muted">{t('common.loading')}</div>}
+        {error && (
+          <div className="text-[13px] text-red border border-red/30 rounded-md px-3 py-2 bg-red/5">{error}</div>
+        )}
+        {data && (
+          <div className="overflow-x-auto">
+            <table className="w-full text-[12px] border-collapse">
+              <thead>
+                <tr className="text-text-muted/70 text-left border-b border-border">
+                  <th className="py-1.5 pr-3 font-medium">{t('market.colCountry')}</th>
+                  <th className="py-1.5 px-3 font-medium text-right">{t('market.colCpiYoy')}</th>
+                  <th className="py-1.5 px-3 font-medium text-right">{t('market.colShortRate')}</th>
+                  <th className="py-1.5 pl-3 font-medium text-right">{t('market.colCli')}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.rows.map((r) => (
+                  <tr key={r.country} className="border-b border-border/50 hover:bg-bg-secondary/40">
+                    <td className="py-1.5 pr-3 text-text font-medium">{r.label}</td>
+                    <GlobalCell cell={r.cpiYoy} fmt={(v) => `${v.toFixed(2)}%`} colorBy="cpi" />
+                    <GlobalCell cell={r.shortRate} fmt={(v) => `${v.toFixed(2)}%`} />
+                    <GlobalCell cell={r.cli} fmt={(v) => v.toFixed(1)} colorBy="cli" />
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <p className="mt-2 text-[10px] text-text-muted/60">{t('market.globalMacroNote')}</p>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function GlobalCell({ cell, fmt, colorBy }: { cell: GlobalMacroCell; fmt: (v: number) => string; colorBy?: 'cpi' | 'cli' }) {
+  if (cell.value == null) {
+    return <td className="py-1.5 px-3 text-right text-text-muted/50" title={cell.error ?? 'no data'}>—</td>
+  }
+  let color = 'text-text'
+  if (colorBy === 'cpi') color = cell.value >= 4 ? 'text-red' : cell.value <= 1 ? 'text-text-muted' : 'text-text'
+  if (colorBy === 'cli') color = cell.value >= 100 ? 'text-green' : 'text-red'
+  return (
+    <td className={`py-1.5 px-3 text-right font-mono ${color}`} title={cell.date ?? ''}>{fmt(cell.value)}</td>
   )
 }
 

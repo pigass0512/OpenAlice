@@ -179,6 +179,13 @@ export const ja: Resources = {
     valCape: 'シラー PER(CAPE)',
     valEarningsYield: '益回り',
     valDividendYield: '配当利回り',
+    boardGlobalMacro: 'グローバルマクロ',
+    globalMacroSubtitle: '各国のインフレ・短期金利・OECD 先行指標の比較。',
+    colCountry: '国',
+    colCpiYoy: 'CPI 前年比',
+    colShortRate: '短期金利(3M)',
+    colCli: 'CLI',
+    globalMacroNote: 'CLI:100 = 長期トレンド。上回り上昇中 = 拡張。セルにホバーで観測日を表示。',
   },
   portfolio: {
     overview: '概要',

@@ -120,10 +120,30 @@ export interface ValuationStrip {
   meta: ReferenceMeta
 }
 
+export interface GlobalMacroCell {
+  value: number | null
+  date: string | null
+  error?: string
+}
+
+export interface GlobalMacroRow {
+  country: string
+  label: string
+  cpiYoy: GlobalMacroCell
+  shortRate: GlobalMacroCell
+  cli: GlobalMacroCell
+}
+
+export interface GlobalMacroBoard {
+  rows: GlobalMacroRow[]
+  meta: ReferenceMeta
+}
+
 export const referenceApi = {
   movers: () => fetchJson<MoversBoard>('/api/reference/movers'),
   calendar: () => fetchJson<CalendarBoard>('/api/reference/calendar'),
   macro: () => fetchJson<MacroBoard>('/api/reference/macro'),
   termStructure: () => fetchJson<TermStructureBoard>('/api/reference/term-structure'),
   valuation: () => fetchJson<ValuationStrip>('/api/reference/valuation'),
+  globalMacro: () => fetchJson<GlobalMacroBoard>('/api/reference/global-macro'),
 }

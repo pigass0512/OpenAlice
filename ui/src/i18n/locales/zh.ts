@@ -179,6 +179,13 @@ export const zh: Resources = {
     valCape: '席勒 PE(CAPE)',
     valEarningsYield: '盈利收益率',
     valDividendYield: '股息率',
+    boardGlobalMacro: '全球宏观',
+    globalMacroSubtitle: '跨国通胀、短端利率与 OECD 领先指标对比。',
+    colCountry: '国家',
+    colCpiYoy: 'CPI 同比',
+    colShortRate: '短端利率(3M)',
+    colCli: 'CLI',
+    globalMacroNote: 'CLI:100 = 长期趋势;高于且上行 = 扩张。悬停单元格可见观测日期。',
   },
   portfolio: {
     overview: '概览',

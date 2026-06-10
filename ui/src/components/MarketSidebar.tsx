@@ -105,6 +105,11 @@ export function MarketSidebar() {
           active={focusedSpec?.kind === 'market-board' && focusedSpec.params.board === 'term-structure'}
           onClick={() => openOrFocus({ kind: 'market-board', params: { board: 'term-structure' } })}
         />
+        <SidebarRow
+          label={t('market.boardGlobalMacro')}
+          active={focusedSpec?.kind === 'market-board' && focusedSpec.params.board === 'global-macro'}
+          onClick={() => openOrFocus({ kind: 'market-board', params: { board: 'global-macro' } })}
+        />
 
         {/* Search results — only when query is non-empty */}
         {query.trim() && (

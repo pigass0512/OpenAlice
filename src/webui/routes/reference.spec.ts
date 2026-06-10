@@ -32,6 +32,15 @@ function mkCtx(overrides?: Partial<ReferenceDataService>): EngineContext {
       cards: [{ id: 'pe_month', label: 'S&P 500 PE', unit: 'index' as const, points: [{ date: '2026-06-08', value: 31.8 }], latest: 31.8, latestDate: '2026-06-08', change: 0.4 }],
       meta: { provider: 'multpl', asOf: '2026-06-10T00:00:00.000Z' },
     }),
+    globalMacro: async () => ({
+      rows: [{
+        country: 'united_states', label: 'United States',
+        cpiYoy: { value: 3.2, date: '2026-04-01' },
+        shortRate: { value: 3.72, date: '2026-04-01' },
+        cli: { value: 100.9, date: '2026-05-01' },
+      }],
+      meta: { provider: 'oecd', asOf: '2026-06-10T00:00:00.000Z' },
+    }),
     ...overrides,
   }
   return { reference } as unknown as EngineContext

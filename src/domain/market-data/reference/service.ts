@@ -9,6 +9,7 @@ import type { CalendarBoard, MacroBoard, MoversBoard, ReferenceDataService } fro
 import { fetchMacroBoard } from './macro.js'
 import { fetchTermStructure, type TermStructureBoard } from './term-structure.js'
 import { fetchValuationStrip, type ValuationStrip } from './valuation.js'
+import { fetchGlobalMacro, type GlobalMacroBoard } from './global-macro.js'
 
 export interface ReferenceDataDeps {
   equityClient: EquityClientLike
@@ -114,6 +115,10 @@ export function createReferenceData(deps: ReferenceDataDeps): ReferenceDataServi
         throw new Error('Valuation strip requires the typebb-sdk market-data backend (index client unavailable).')
       }
       return fetchValuationStrip(deps.indexClient)
+    },
+
+    async globalMacro(): Promise<GlobalMacroBoard> {
+      return fetchGlobalMacro(deps.economyClient)
     },
   }
 }
