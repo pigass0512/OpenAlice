@@ -485,6 +485,7 @@ All config lives in `~/.openalice/data/config/` as JSON files with Zod validatio
 | `market-data.json` | Data Hub (`enabled` / `baseUrl`), per-asset-class vendors, provider API keys (fallback when the hub is off or uncovered) |
 | `news.json` | RSS feeds, fetch interval, retention period |
 | `snapshot.json` | Account snapshot interval and retention |
+| `trading.json` | Trading-engine knobs — external-order observation cadence (`observeExternalOrdersEvery`, default `15m`, `off` to disable) |
 | `compaction.json` | Context window limits, auto-compaction thresholds |
 
 The persona prompt uses a **default + user override** pattern:

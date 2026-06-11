@@ -13,6 +13,7 @@
 import { Hono } from 'hono'
 import { serve } from '@hono/node-server'
 import { loadConfig, readUTAsConfig, purgeEphemeralUTAs, type UTAConfig } from '@/core/config.js'
+import { parseDuration } from '@/core/duration.js'
 import { createEventLog } from '@/core/event-log.js'
 import { ToolCenter } from '@/core/tool-center.js'
 import {
@@ -114,11 +115,18 @@ async function main(): Promise<void> {
   }
 
   // ==================== Order-sync poller ====================
-  // Fill awareness: polls brokers for pending-order status and records the
-  // transitions as git sync commits. Idle (no pending orders) costs nothing.
+  // Fast lane (10s): fill/cancel detection for known pending orders —
+  // broker calls only when something is actually pending. Slow lane
+  // (config.trading.observeExternalOrdersEvery, default 15m): list open
+  // orders to catch ones placed outside Alice.
 
-  startOrderSyncPoller(() => utaManager.resolve())
-  console.log('[uta] order-sync poller started (10s cadence, pending-only)')
+  const observeRaw = config.trading.observeExternalOrdersEvery
+  const observeIntervalMs = observeRaw === 'off' ? 0 : parseDuration(observeRaw)
+  if (observeIntervalMs === null) {
+    console.warn(`[uta] trading.json observeExternalOrdersEvery "${observeRaw}" is not a duration (e.g. "15m") — falling back to 15m`)
+  }
+  startOrderSyncPoller(() => utaManager.resolve(), { observeIntervalMs: observeIntervalMs ?? 15 * 60_000 })
+  console.log(`[uta] order-sync poller started (10s pending lane; external-order observation ${observeRaw === 'off' ? 'off' : `every ${observeRaw}`})`)
 
   // ==================== Catalog refresh ====================
   // Brokers that cache catalog (Alpaca / CCXT / Mock) need periodic refresh.

@@ -69,7 +69,8 @@ describe('order-sync poller', () => {
 
   it('external order: observed on the slow lane, then lifecycle handled by the fast lane', async () => {
     const { uta, broker } = createUTA()
-    const poller = startOrderSyncPoller(() => [uta], { intervalMs: 60_000, observeEveryTicks: 2, log: () => {} })
+    // intervalMs 60s + observeIntervalMs 120s → observe pass on ticks 1, 3, 5…
+    const poller = startOrderSyncPoller(() => [uta], { intervalMs: 60_000, observeIntervalMs: 120_000, log: () => {} })
 
     // User places a limit order on the exchange directly — git never saw it.
     const order = new Order()

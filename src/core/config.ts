@@ -304,6 +304,19 @@ const snapshotSchema = z.object({
   every: z.string().default('15m'),
 })
 
+const tradingSchema = z.object({
+  /**
+   * External-order observation cadence — how often UTA lists the broker's
+   * open orders to catch ones placed outside Alice (exchange app, direct
+   * API). Duration string ('1m' / '5m' / '10m' / '15m'); 'off' disables.
+   * Default 15m: untracked orders are a narrative-fidelity feature, not a
+   * primary flow — keep the standing request rate negligible (96/day per
+   * account). Fill/cancel detection for KNOWN pending orders is separate
+   * (10s fast lane) and unaffected by this knob.
+   */
+  observeExternalOrdersEvery: z.string().default('15m'),
+})
+
 export const toolsSchema = z.object({
   /** Tool names that are disabled. Tools not listed are enabled by default. */
   disabled: z.array(z.string()).default([]),
@@ -404,6 +417,7 @@ export type Config = {
   compaction: z.infer<typeof compactionSchema>
   aiProvider: z.infer<typeof aiProviderSchema>
   snapshot: z.infer<typeof snapshotSchema>
+  trading: z.infer<typeof tradingSchema>
   mcp: z.infer<typeof mcpSchema>
   connectors: z.infer<typeof connectorsSchema>
   news: z.infer<typeof newsCollectorSchema>
@@ -446,7 +460,7 @@ export async function loadConfig(): Promise<Config> {
   // is pending. See src/migrations/INDEX.md for the full list.
   await runMigrations()
 
-  const files = ['engine.json', 'agent.json', 'crypto.json', 'securities.json', 'market-data.json', 'compaction.json', 'ai-provider-manager.json', 'snapshot.json', 'mcp.json', 'connectors.json', 'news.json', 'tools.json', 'webhook.json'] as const
+  const files = ['engine.json', 'agent.json', 'crypto.json', 'securities.json', 'market-data.json', 'compaction.json', 'ai-provider-manager.json', 'snapshot.json', 'mcp.json', 'connectors.json', 'news.json', 'tools.json', 'webhook.json', 'trading.json'] as const
   const raws = await Promise.all(files.map((f) => loadJsonFile(f)))
 
   const config: Config = {
@@ -463,6 +477,7 @@ export async function loadConfig(): Promise<Config> {
     news:          await parseAndSeed(files[10], newsCollectorSchema, raws[10]),
     tools:         await parseAndSeed(files[11], toolsSchema, raws[11]),
     webhook:       await parseAndSeed(files[12], webhookSchema, raws[12]),
+    trading:       await parseAndSeed(files[13], tradingSchema, raws[13]),
   }
 
   // Spawn-time-fixed channel: when guardian (Electron main) spawns the
@@ -864,6 +879,7 @@ const sectionSchemas: Record<ConfigSection, z.ZodTypeAny> = {
   compaction: compactionSchema,
   aiProvider: aiProviderSchema,
   snapshot: snapshotSchema,
+  trading: tradingSchema,
   mcp: mcpSchema,
   connectors: connectorsSchema,
   news: newsCollectorSchema,
@@ -880,6 +896,7 @@ const sectionFiles: Record<ConfigSection, string> = {
   compaction: 'compaction.json',
   aiProvider: 'ai-provider-manager.json',
   snapshot: 'snapshot.json',
+  trading: 'trading.json',
   mcp: 'mcp.json',
   connectors: 'connectors.json',
   news: 'news.json',
