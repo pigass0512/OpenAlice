@@ -501,8 +501,8 @@ export function WorkspaceAIConfigModal({ wsId, onClose }: Props) {
                 directly to DeepSeek, Qwen, Kimi, GLM, MiniMax and local runtimes; Base URL is the
                 provider's OpenAI-compatible endpoint, Model is the bare model id. Written to a
                 per-workspace <code className="font-mono text-[11.5px]">.pi-agent/models.json</code>.
-                Trading tools reach Pi through the <code className="font-mono text-[11.5px]">alice</code>{' '}
-                CLI on PATH (the <code className="font-mono text-[11.5px]">openalice-cli</code> skill),
+                Trading tools reach Pi through the <code className="font-mono text-[11.5px]">alice-uta</code>{' '}
+                CLI on PATH (the <code className="font-mono text-[11.5px]">alice-uta</code> skill),
                 not MCP — Pi has no native MCP.
               </p>
             </div>

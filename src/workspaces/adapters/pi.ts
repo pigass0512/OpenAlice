@@ -10,8 +10,8 @@ import { readWorkspaceFile, writeWorkspaceFile } from '../file-service.js';
 // `<cwd>/.pi-agent` via PI_CODING_AGENT_DIR (composeEnv) and drop models.json
 // there. This is a DIFFERENT dir from `<cwd>/.pi` (Pi's project-local
 // extensions/skills discovery, keyed off cwd and unaffected by
-// PI_CODING_AGENT_DIR) — so the openalice-cli skill in `<cwd>/.pi/skills` still
-// resolves. Verified against pi 0.78.1 (`dist/core/model-registry.js:144-157`,
+// PI_CODING_AGENT_DIR) — so the alice* CLI skills in `<cwd>/.pi/skills` still
+// resolve. Verified against pi 0.78.1 (`dist/core/model-registry.js:144-157`,
 // `dist/config.js:378,393-407`).
 const PI_AGENT_DIR = '.pi-agent';
 const PI_MODELS_PATH = `${PI_AGENT_DIR}/models.json`;
@@ -23,14 +23,15 @@ const PI_PROVIDER_NAME = 'workspace';
  * CLI — the second non-claude/openai channel after opencode ("two suppliers",
  * the IBKR-superset dual-vendor stance). Verified against pi 0.78.1.
  *
- * TOOL ACCESS is NOT a per-CLI MCP bridge — Pi has no native MCP. It rides
- * OpenAlice's CLI-injection path: the `alice` shim is on PATH for every spawn
- * (`service.ts:220-224`) and the `openalice-cli` skill is copied to
- * `<cwd>/.pi/skills` (`context-injector.ts`); Pi's built-in `bash` tool calls
- * `alice <tool>`. trading/cron are MCP-only (`server/cli.ts:20`), so CLI-mode
- * Pi workspaces are analysis-only — a future trading-capable Pi workspace would
- * need an MCP bridge extension, deferred until there's a concrete need. See
- * memory feedback_cli_injection_over_mcp_bridge.
+ * TOOL ACCESS: Pi has no native MCP, and the launcher injects NO MCP into
+ * workspaces at all — Pi reaches OpenAlice purely through the `alice*` CLI
+ * shims on PATH (`service.ts`) + the `alice*` / `traderhub` skills
+ * copied to `<cwd>/.pi/skills` (`context-injector.ts`); Pi's built-in `bash`
+ * tool runs `alice` / `alice-uta` / `alice-workspace` / `traderhub`. This is
+ * the full surface (data, trading, workspace, market) — same as every other
+ * agent; only cron is unavailable (MCP-only by design, on no CLI). The old
+ * `.pi/extensions/openalice-bridge.ts` MCP bridge was removed when the launcher
+ * went CLI-only. See memory feedback_cli_injection_over_mcp_bridge.
  *
  * PROVIDER override: Pi has no `--base-url` flag and `models.json` has no
  * project layer, so per-workspace provider config goes through the redirected
