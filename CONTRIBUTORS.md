@@ -40,6 +40,7 @@ This page is the record of those people, and of what each one helped move.
 | | Contributor | Credits | Shaped |
 |:--:|---|:--:|---|
 | | <a href="https://github.com/2233admin"><img src="https://github.com/2233admin.png" width="40" height="40" alt="@2233admin" /></a><br>[@2233admin](https://github.com/2233admin) | 🎨 | [Linear dark-shell design pass — palette & navigation density re-traced into the app](https://github.com/TraderAlice/OpenAlice/pull/302) |
+| | <a href="https://github.com/lvysssss"><img src="https://github.com/lvysssss.png" width="40" height="40" alt="@lvysssss" /></a><br>[@lvysssss](https://github.com/lvysssss) | 🐛 🤔 | [Windows workspace-launch blockers — diagnosed the bootstrap path/bash failures and the extensionless CLI-shim file-association dialog, with verified repros](https://github.com/TraderAlice/OpenAlice/issues/364) |
 
 ---
 

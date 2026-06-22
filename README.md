@@ -522,6 +522,7 @@ one. The people who've left a mark:
      <a href="https://github.com/HANDLE"><img src="https://github.com/HANDLE.png" width="56" height="56" alt="@HANDLE" /></a> -->
 <p>
   <a href="https://github.com/2233admin"><img src="https://github.com/2233admin.png" width="56" height="56" alt="@2233admin" /></a>
+  <a href="https://github.com/lvysssss"><img src="https://github.com/lvysssss.png" width="56" height="56" alt="@lvysssss" /></a>
 </p>
 
 **See the full list and what each person shaped** → [CONTRIBUTORS.md](./CONTRIBUTORS.md)
