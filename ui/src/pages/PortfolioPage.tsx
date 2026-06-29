@@ -213,7 +213,7 @@ export function PortfolioPage() {
     const acct = data.accounts.find(a => a.id === eq.id)
     const unrealizedPnL = acct?.positions.reduce((sum, p) => sum + Number(p.unrealizedPnL), 0) ?? 0
     const hInfo = healthMap[eq.id]
-    return { ...eq, provider: acct?.provider ?? '', unrealizedPnL, error: acct?.error, health: eq.health, disabled: hInfo?.disabled ?? false }
+    return { ...eq, provider: acct?.provider ?? '', unrealizedPnL, error: acct?.error, health: eq.health, disabled: hInfo?.disabled ?? false, connecting: hInfo?.connecting ?? false }
   })
 
   return (
@@ -428,37 +428,44 @@ const HEALTH_DOT: Record<string, string> = {
 }
 
 function AccountStrip({ sources, perAccountCurve }: {
-  sources: Array<{ id: string; label: string; provider: string; equity: string; unrealizedPnL: number; error?: string; health?: string; disabled?: boolean }>
+  sources: Array<{ id: string; label: string; provider: string; equity: string; unrealizedPnL: number; error?: string; health?: string; disabled?: boolean; connecting?: boolean }>
   perAccountCurve: Record<string, { values: number[]; firstAtCutoff: number | null; latest: number | null }>
 }) {
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
       {sources.map(s => {
         const isDisabled = s.disabled
-        const isOffline = s.health === 'offline' && !isDisabled
+        // Initial connect in flight — distinct from offline. `health` is
+        // optimistically 'healthy' here, so this can only come from the flag.
+        const isConnecting = !!s.connecting && !isDisabled
+        const isOffline = s.health === 'offline' && !isDisabled && !isConnecting
         const dotColor = isDisabled
           ? 'bg-text-muted/40'
-          : (HEALTH_DOT[s.health ?? 'healthy'] ?? 'bg-text-muted')
+          : isConnecting
+            ? 'bg-accent'
+            : (HEALTH_DOT[s.health ?? 'healthy'] ?? 'bg-text-muted')
 
         const curve = perAccountCurve[s.id]
         const todayDelta = curve && curve.latest != null && curve.firstAtCutoff != null
           ? curve.latest - curve.firstAtCutoff
           : null
-        const showSpark = !isDisabled && !isOffline && curve && curve.values.length >= 2
+        const showSpark = !isDisabled && !isOffline && !isConnecting && curve && curve.values.length >= 2
 
         return (
           <div key={s.id} className={`flex items-center gap-3 px-3.5 py-3 rounded-lg border border-border bg-bg-secondary ${isOffline || isDisabled ? 'opacity-60' : ''}`}>
-            <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${dotColor}`} />
+            <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${dotColor} ${isConnecting ? 'animate-pulse' : ''}`} />
             <div className="flex-1 min-w-0">
               <div className="flex items-baseline justify-between gap-2">
                 <span className="text-text font-medium text-[13px] truncate">{s.label}</span>
-                {!isDisabled && !isOffline && (
+                {!isDisabled && !isOffline && !isConnecting && (
                   <span className="text-text-muted tabular-nums text-[13px]">{fmt(Number(s.equity))}</span>
                 )}
               </div>
               <div className="flex items-baseline justify-between gap-2 mt-0.5">
                 {isDisabled
                   ? <span className="text-text-muted text-[11px]">Disabled</span>
+                  : isConnecting
+                    ? <span className="text-accent text-[11px]">Connecting...</span>
                   : isOffline
                     ? <span className="text-red text-[11px]">Reconnecting…</span>
                     : (

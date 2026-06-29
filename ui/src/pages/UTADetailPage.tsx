@@ -268,7 +268,7 @@ export function UTADetailPage({ spec }: UTADetailPageProps) {
                   }}
                 />
               )}
-              <AccountPanel account={account} positions={positions} delta24h={delta24h} clock={clock} />
+              <AccountPanel account={account} positions={positions} delta24h={delta24h} clock={clock} connecting={health?.connecting ?? false} />
             </div>
 
             <div className="lg:order-1 min-w-0 space-y-5">
@@ -380,11 +380,12 @@ function sumFinite(values: number[]): number {
  * fabricated zero. (Live examples: Alpaca has no realizedPnL; CCXT/okx has
  * realizedPnL but no buyingPower.)
  */
-function AccountPanel({ account, positions, delta24h, clock }: {
+function AccountPanel({ account, positions, delta24h, clock, connecting }: {
   account: AccountInfo | null
   positions: Position[]
   delta24h: Delta24h | null
   clock: MarketClockState
+  connecting?: boolean
 }) {
   if (!account) {
     return (
@@ -392,7 +393,12 @@ function AccountPanel({ account, positions, delta24h, clock }: {
         {clock != null && (
           <div className="text-[12px] mb-3"><MarketClockChip clock={clock} /></div>
         )}
-        <p className="text-[13px] text-text-muted">Loading account info…</p>
+        {/* During the initial broker connect, say so explicitly — "connecting"
+            reads as progress, where a bare "Loading…" that lingers 30s reads
+            as a stall. */}
+        <p className={`text-[13px] ${connecting ? 'text-accent' : 'text-text-muted'}`}>
+          {connecting ? 'Connecting to broker…' : 'Loading account info…'}
+        </p>
       </div>
     )
   }
