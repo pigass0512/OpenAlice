@@ -203,16 +203,47 @@ export function TerminalView(props: TerminalViewProps): ReactElement {
       if (ws && ws.readyState === WebSocket.OPEN) ws.send(encoder.encode(data));
     };
 
+    let suppressNextKeypress = false;
+    let suppressNextKeypressTimer: ReturnType<typeof setTimeout> | undefined;
+
+    const armSuppressNextKeypress = (): void => {
+      suppressNextKeypress = true;
+      if (suppressNextKeypressTimer) clearTimeout(suppressNextKeypressTimer);
+      suppressNextKeypressTimer = setTimeout(() => {
+        suppressNextKeypress = false;
+        suppressNextKeypressTimer = undefined;
+      }, 50);
+    };
+
+    const clearSuppressNextKeypress = (): void => {
+      suppressNextKeypress = false;
+      if (suppressNextKeypressTimer) clearTimeout(suppressNextKeypressTimer);
+      suppressNextKeypressTimer = undefined;
+    };
+
     term.attachCustomKeyEventHandler((event) => {
       if (event.type !== 'keydown') return true;
+      const signature = keySignature(event);
       const map = keyMapRef.current;
       if (map === undefined) return true;
-      const bytes = map[keySignature(event)];
+      const bytes = map[signature];
       if (bytes === undefined) return true;
-      logInput(`key:${keySignature(event)}`, bytes);
+      armSuppressNextKeypress();
+      event.preventDefault();
+      event.stopPropagation();
+      logInput(`key:${signature}`, bytes);
       sendStdin(bytes);
       return false;
     });
+
+    const suppressMappedKeypress = (event: KeyboardEvent): void => {
+      if (!suppressNextKeypress) return;
+      clearSuppressNextKeypress();
+      event.preventDefault();
+      event.stopPropagation();
+    };
+
+    container.addEventListener('keypress', suppressMappedKeypress, true);
 
     const handleResize = (): void => {
       safeFit(fit);
@@ -340,7 +371,9 @@ export function TerminalView(props: TerminalViewProps): ReactElement {
       if (reconnectTimer) clearTimeout(reconnectTimer);
       stdinSub.dispose();
       binarySub.dispose();
+      clearSuppressNextKeypress();
       ro.disconnect();
+      container.removeEventListener('keypress', suppressMappedKeypress, true);
       window.removeEventListener('resize', handleResize);
       try {
         activeWs?.close();
