@@ -201,7 +201,7 @@ jobs:
         # arm64). --publish never: build only, softprops does the upload so the
         # release object has one owner.
         run: |
-          ulimit -n 10240
+          ulimit -n 65536 || ulimit -n 32768 || ulimit -n 16384 || ulimit -n 10240
           echo "open files limit: $(ulimit -n)"
           pnpm -F @traderalice/desktop exec electron-builder --projectDir ../.. --publish never
         env:
