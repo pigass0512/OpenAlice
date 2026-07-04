@@ -81,9 +81,8 @@ export function UrlAdopter() {
         {/* Workspaces */}
         <Route path="/workspaces" element={<AdoptStatic spec={{ kind: 'workspace-list', params: {} }} />} />
         {/* Template catalog routes must come before /workspaces/:wsId so the
-            static `templates` segment wins the match (it would otherwise
-            never collide — wsIds are UUIDs — but route specificity is the
-            defensive default). */}
+            static `templates` segment wins the match even if a workspace id is
+            a human-readable slug. */}
         <Route path="/workspaces/templates" element={<AdoptStatic spec={{ kind: 'template-catalog', params: {} }} />} />
         <Route path="/workspaces/templates/:name" element={<AdoptTemplateDetail />} />
         <Route path="/workspaces/:wsId/view/:path" element={<AdoptFileViewer />} />

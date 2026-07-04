@@ -7,7 +7,6 @@
  */
 
 import { Hono } from 'hono';
-import { randomUUID } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { join, resolve as resolvePath } from 'node:path';
 
@@ -29,6 +28,7 @@ import type { SessionRecord } from '../../workspaces/session-registry.js';
 import type { WorkspaceMeta } from '../../workspaces/workspace-registry.js';
 import { HeadlessCapacityError, resumeFromRecord, type SessionFactoryContext, type WorkspaceService } from '../../workspaces/service.js';
 import { isAgentRuntime, type WorkspaceAiCred } from '../../workspaces/cli-adapter.js';
+import { generatePetnameId } from '../../workspaces/petname-id.js';
 import { addCredential, readCredentials, readWorkspaceDefaultAgent, setCredentialLastModel, credentialWires, credentialWireShapeEnum, type Credential } from '../../core/config.js';
 import { inferCredentialVendor, resolveAnthropicAuthMode } from '../../core/credential-inference.js';
 import {
@@ -47,13 +47,10 @@ import {
  */
 const LOGINLESS_AGENTS = new Set(['opencode', 'pi']);
 
-const SESSION_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
 // The spawn body's `resume` value is an AGENT-side session id, whose shape is
-// adapter-native: uuid for claude/codex/pi, `ses_<base62>` for opencode. The
-// launcher-side record ids in URL params stay strict-uuid (SESSION_ID_RE) —
-// this looser shape applies ONLY to the resume intent passed through to the
-// adapter's own resume flag.
+// adapter-native: uuid for claude/codex/pi, `ses_<base62>` for opencode. This
+// looser shape applies ONLY to the resume intent passed through to the adapter's
+// own resume flag; launcher-side record ids use `validId`.
 const AGENT_SESSION_ID_RE = /^[A-Za-z0-9_.-]{8,128}$/;
 
 /** Upper bound on a quick-chat seed prompt — matches the headless-dispatch cap. */
@@ -178,7 +175,12 @@ export function createWorkspaceRoutes(svc: WorkspaceService): Hono {
     }
     await svc.sessionRegistry.ensureLoaded(id);
     const prefix = adapter.namePrefix ?? adapter.id[0] ?? 's';
-    const recordId = randomUUID();
+    const recordId = generatePetnameId(adapter.id, {
+      fallbackPrefix: 'session',
+      isTaken: (candidate) =>
+        svc.sessionRegistry.findById(candidate) !== undefined ||
+        svc.pool.get(candidate) !== undefined,
+    });
     const recordName = svc.sessionRegistry.nextName(id, adapter.id, prefix);
     const nowIso = new Date().toISOString();
     const title = initialPrompt ? initialPrompt.slice(0, MAX_SESSION_TITLE) : undefined;
@@ -726,7 +728,7 @@ export function createWorkspaceRoutes(svc: WorkspaceService): Hono {
     app.post(`/:id/sessions/:sid/${action}`, async (c) => {
       const id = c.req.param('id');
       const token = c.req.param('sid');
-      if (!validId(id) || !SESSION_ID_RE.test(token)) {
+      if (!validId(id) || !validId(token)) {
         return c.json({ error: 'not_found' }, 404);
       }
       const record = svc.sessionRegistry.get(id, token);
@@ -771,7 +773,7 @@ export function createWorkspaceRoutes(svc: WorkspaceService): Hono {
   app.post('/:id/sessions/:sid/resume', async (c) => {
     const id = c.req.param('id');
     const token = c.req.param('sid');
-    if (!validId(id) || !SESSION_ID_RE.test(token)) {
+    if (!validId(id) || !validId(token)) {
       return c.json({ error: 'not_found' }, 404);
     }
     // Serialize concurrent resumes of this record (ANG-120 — see resumeInFlight).
@@ -921,7 +923,7 @@ export function createWorkspaceRoutes(svc: WorkspaceService): Hono {
   app.get('/:id/sessions/:sid/diagnostics', async (c) => {
     const id = c.req.param('id');
     const token = c.req.param('sid');
-    if (!validId(id) || !SESSION_ID_RE.test(token)) {
+    if (!validId(id) || !validId(token)) {
       return c.json({ error: 'not_found' }, 404);
     }
     const meta = svc.registry.get(id);
@@ -1015,7 +1017,7 @@ export function createWorkspaceRoutes(svc: WorkspaceService): Hono {
   app.post('/:id/sessions/:sid/probe', async (c) => {
     const id = c.req.param('id');
     const token = c.req.param('sid');
-    if (!validId(id) || !SESSION_ID_RE.test(token)) {
+    if (!validId(id) || !validId(token)) {
       return c.json({ error: 'not_found' }, 404);
     }
     let prompt: string;
@@ -1037,17 +1039,18 @@ export function createWorkspaceRoutes(svc: WorkspaceService): Hono {
         ? Math.min(rawTimeout, 120_000)
         : 20_000;
       // resume override: 'auto' (default — follow record's resumeHint),
-      // 'fresh' (no resume flag), 'last' (force --continue), or a UUID
-      // string (force --resume <uuid>). Lets the probe seed a brand-new
-      // session before any real interaction has produced a transcript.
+      // 'fresh' (no resume flag), 'last' (force --continue), or an adapter-
+      // native session id string (force --resume/--session <id>). Lets the
+      // probe seed a brand-new session before any real interaction has produced
+      // a transcript.
       const rawResume = fields['resume'];
       if (rawResume !== undefined && rawResume !== 'auto') {
         if (rawResume === 'fresh') resumeOverride = 'none';
         else if (rawResume === 'last') resumeOverride = 'last';
-        else if (typeof rawResume === 'string' && SESSION_ID_RE.test(rawResume)) {
+        else if (typeof rawResume === 'string' && AGENT_SESSION_ID_RE.test(rawResume)) {
           resumeOverride = { sessionId: rawResume };
         } else {
-          return c.json({ error: 'bad_request', message: 'resume must be "auto", "fresh", "last", or a UUID' }, 400);
+          return c.json({ error: 'bad_request', message: 'resume must be "auto", "fresh", "last", or an agent session id' }, 400);
         }
       }
     } catch (err) {
@@ -1194,7 +1197,7 @@ export function createWorkspaceRoutes(svc: WorkspaceService): Hono {
   app.delete('/:id/sessions/:sid', async (c) => {
     const id = c.req.param('id');
     const token = c.req.param('sid');
-    if (!validId(id) || !SESSION_ID_RE.test(token)) {
+    if (!validId(id) || !validId(token)) {
       return c.json({ error: 'not_found' }, 404);
     }
     const record = svc.sessionRegistry.get(id, token);

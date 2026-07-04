@@ -249,7 +249,7 @@ export interface SpawnedSession {
 }
 
 export interface SpawnOptions {
-  /** `'last'` → adapter-specific "continue", any UUID → adapter-specific resume-by-id. */
+  /** `'last'` → adapter-specific "continue", any string → adapter-specific resume-by-id. */
   readonly resume?: 'last' | string;
   /** Explicit runtime/tool adapter for this spawn. */
   readonly agent?: string;

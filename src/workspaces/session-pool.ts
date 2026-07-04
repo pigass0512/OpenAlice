@@ -63,7 +63,7 @@ export interface LiveSessionInfo {
 }
 
 /**
- * Owns every live PTY, keyed by the record id (a stable uuid the
+ * Owns every live PTY, keyed by the record id (a stable launcher id the
  * SessionRegistry pre-allocates). One PersistentSession per id; one
  * attached WebSocket per session (second attach kicks the first). PTYs
  * exist only between spawn and dispose — restart wipes the pool but the

@@ -40,8 +40,13 @@ function build(opts: { workspaces?: any[] } = {}) {
   const claude = { id: 'claude', namePrefix: 'c' };
   const shell = { id: 'shell', kind: 'utility', namePrefix: 'sh' };
   const adapters: Record<string, any> = { opencode, claude, shell };
-  const spawn = vi.fn(() => ({
-    recordId: 'rec-1', wsId: 'ws-1', name: 'o1', pid: 1, agentSessionId: null, startedAt: 1,
+  const spawn = vi.fn((_wsId: string, ctx: any) => ({
+    recordId: ctx.recordId,
+    wsId: 'ws-1',
+    name: ctx.recordName,
+    pid: 1,
+    agentSessionId: null,
+    startedAt: 1,
   }));
   const creator = { create: vi.fn(async () => ({ ok: true, workspace: META })) };
   const svc = {
@@ -53,11 +58,12 @@ function build(opts: { workspaces?: any[] } = {}) {
     adapters: { get: (id: string) => adapters[id] },
     sessionRegistry: {
       ensureLoaded: vi.fn(async () => {}),
+      findById: vi.fn(() => undefined),
       nextName: () => 'o1',
       create: vi.fn(async () => {}),
       remove: vi.fn(async () => {}),
     },
-    pool: { spawn },
+    pool: { spawn, get: vi.fn(() => undefined) },
     publicMeta: vi.fn(async () => META),
     config: { launcherRepoRoot: '/repo' },
   } as unknown as WorkspaceService;
