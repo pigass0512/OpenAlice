@@ -87,6 +87,37 @@ describe('CLI shim copies', () => {
     }
   })
 
+  it('reports a wrong CLI endpoint instead of throwing on an HTML manifest response', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'openalice-cli-shim-html-'))
+    const socketPath = process.platform === 'win32'
+      ? `\\\\.\\pipe\\openalice-cli-shim-html-${process.pid}-${Date.now()}`
+      : join(dir, 'tools.sock')
+    const server = createServer((_req, res) => {
+      res.writeHead(200, { 'content-type': 'text/html' })
+      res.end('<!DOCTYPE html><html><body>Vite fallback</body></html>')
+    })
+    await new Promise<void>((resolve, reject) => {
+      server.once('error', reject)
+      server.listen(socketPath, resolve)
+    })
+    try {
+      await expect(execFileAsync(process.execPath, [fileURLToPath(new URL('bin/alice-workspace', import.meta.url)), 'issue', 'list'], {
+        env: {
+          ...process.env,
+          AQ_WS_ID: 'ws1',
+          OPENALICE_TOOL_SOCKET: socketPath,
+          OPENALICE_TOOL_URL: '/cli',
+        },
+        timeout: 5_000,
+      })).rejects.toMatchObject({
+        stderr: expect.stringContaining('invalid OpenAlice CLI manifest'),
+      })
+    } finally {
+      await new Promise<void>((resolve) => server.close(() => resolve()))
+      await rm(dir, { recursive: true, force: true })
+    }
+  })
+
   // Windows has no shebang concept — it resolves executables on PATH by
   // extension (PATHEXT). The extensionless shims trigger a "how do you want to
   // open this file?" association dialog on every invocation. A `.cmd` twin per

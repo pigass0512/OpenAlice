@@ -507,6 +507,8 @@ export interface AgentConfig {
   readonly baseUrl: string | null;
   readonly apiKey: string | null;
   readonly model: string | null;
+  /** Optional custom-model context window for opencode/Pi provider overrides. */
+  readonly contextWindow?: number | null;
   /** Wire protocol the endpoint speaks — drives how the adapter is configured. */
   readonly wireShape?: WireShape | null;
   /** Codex only — wire format for the upstream API. */

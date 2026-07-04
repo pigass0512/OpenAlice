@@ -10,6 +10,7 @@ const execFileAsync = promisify(execFile);
 
 const OPENCODE_CONFIG_PATH = 'opencode.json';
 const OPENCODE_PROVIDER_NAME = 'workspace';
+const DEFAULT_OUTPUT_TOKENS = 16_384;
 // opencode's `@ai-sdk/openai-compatible` SDK is statically bundled into the
 // binary (no runtime `npm install`) and speaks `/v1/chat/completions` — the
 // right shape for OpenAI-compatible + Chinese gateways (DeepSeek/Qwen/Kimi/
@@ -17,6 +18,10 @@ const OPENCODE_PROVIDER_NAME = 'workspace';
 // overrides always use this SDK; an Anthropic-shape override would swap to
 // `@ai-sdk/anthropic` (also bundled) — deferred until there's a real case.
 const OPENCODE_SDK_NPM = '@ai-sdk/openai-compatible';
+
+function positiveNumber(value: number | null | undefined): number | null {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : null;
+}
 
 /**
  * opencode (github.com/anomalyco/opencode, formerly sst/opencode; MIT, by
@@ -153,7 +158,15 @@ export const opencodeAdapter: CliAdapter = {
       options,
     };
     if (cred.model) {
-      provider['models'] = { [cred.model]: { name: cred.model } };
+      const model: Record<string, unknown> = { name: cred.model };
+      const contextWindow = positiveNumber(cred.contextWindow);
+      if (contextWindow !== null) {
+        // opencode treats missing custom-model limits as 0, which disables its
+        // proactive context tracking. Supplying both fields satisfies its config
+        // schema while keeping output conservative and invisible in OpenAlice UI.
+        model['limit'] = { context: contextWindow, output: DEFAULT_OUTPUT_TOKENS };
+      }
+      provider['models'] = { [cred.model]: model };
     }
 
     const config: Record<string, unknown> = {
@@ -188,13 +201,17 @@ export const opencodeAdapter: CliAdapter = {
       const slash = top.indexOf('/');
       model = slash >= 0 ? top.slice(slash + 1) : top;
     }
+    const models = (ws['models'] ?? {}) as Record<string, Record<string, unknown>>;
+    const modelConfig = model ? models[model] : undefined;
+    const limit = (modelConfig?.['limit'] ?? {}) as Record<string, unknown>;
+    const contextWindow = positiveNumber(limit['context'] as number | null | undefined);
     if (baseUrl === null && apiKey === null && model === null) return null;
     // Reverse the npm package back to the wire shape.
     const npm = typeof ws['npm'] === 'string' ? (ws['npm'] as string) : '';
     const wireShape = npm === '@ai-sdk/anthropic' ? 'anthropic' as const
       : npm === '@ai-sdk/openai' ? 'openai-responses' as const
       : 'openai-chat' as const;
-    return { baseUrl, apiKey, model, wireShape };
+    return { baseUrl, apiKey, model, wireShape, ...(contextWindow ? { contextWindow } : {}) };
   },
 
   /**

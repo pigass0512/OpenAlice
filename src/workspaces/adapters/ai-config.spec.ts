@@ -232,6 +232,16 @@ describe('opencodeAdapter AI-config', () => {
     });
   });
 
+  it('writes an explicit custom-model context window for opencode when provided', async () => {
+    await opencodeAdapter.writeAiConfig!(dir, {
+      baseUrl: 'https://cn.test/v1', apiKey: 'sk-o', model: 'deepseek-chat', contextWindow: 1_000_000,
+    });
+    expect(JSON.parse(await read('opencode.json')).provider.workspace.models['deepseek-chat']).toEqual({
+      name: 'deepseek-chat',
+      limit: { context: 1_000_000, output: 16_384 },
+    });
+  });
+
   it('honors wireShape — anthropic → @ai-sdk/anthropic, responses → @ai-sdk/openai', async () => {
     await opencodeAdapter.writeAiConfig!(dir, { baseUrl: 'https://x/anthropic', apiKey: 'k', model: 'glm-5.1', wireShape: 'anthropic' });
     expect(JSON.parse(await read('opencode.json')).provider.workspace.npm).toBe('@ai-sdk/anthropic');
@@ -247,10 +257,10 @@ describe('opencodeAdapter AI-config', () => {
 
   it('round-trips through readAiConfig (strips the provider/ prefix off model)', async () => {
     await opencodeAdapter.writeAiConfig!(dir, {
-      baseUrl: 'https://cn.test/v1', apiKey: 'sk-o', model: 'deepseek-chat',
+      baseUrl: 'https://cn.test/v1', apiKey: 'sk-o', model: 'deepseek-chat', contextWindow: 512_000,
     });
     expect(await opencodeAdapter.readAiConfig!(dir)).toEqual({
-      baseUrl: 'https://cn.test/v1', apiKey: 'sk-o', model: 'deepseek-chat', wireShape: 'openai-chat',
+      baseUrl: 'https://cn.test/v1', apiKey: 'sk-o', model: 'deepseek-chat', wireShape: 'openai-chat', contextWindow: 512_000,
     });
   });
 
@@ -395,6 +405,15 @@ describe('piAdapter AI-config', () => {
     });
   });
 
+  it('writes an explicit custom-model context window for Pi when provided', async () => {
+    await piAdapter.writeAiConfig!(dir, {
+      baseUrl: 'https://cn.test/v1', apiKey: 'sk-p', model: 'deepseek-chat', contextWindow: 1_000_000,
+    });
+    expect(JSON.parse(await read('.pi-agent/models.json')).providers.workspace.models).toEqual([
+      { id: 'deepseek-chat', contextWindow: 1_000_000 },
+    ]);
+  });
+
   it('honors wireShape — anthropic → anthropic-messages, responses → openai-responses', async () => {
     await piAdapter.writeAiConfig!(dir, { baseUrl: 'https://x/anthropic', apiKey: 'k', model: 'glm-5.1', wireShape: 'anthropic' });
     expect(JSON.parse(await read('.pi-agent/models.json')).providers.workspace.api).toBe('anthropic-messages');
@@ -410,10 +429,10 @@ describe('piAdapter AI-config', () => {
 
   it('round-trips through readAiConfig', async () => {
     await piAdapter.writeAiConfig!(dir, {
-      baseUrl: 'https://cn.test/v1', apiKey: 'sk-p', model: 'deepseek-chat',
+      baseUrl: 'https://cn.test/v1', apiKey: 'sk-p', model: 'deepseek-chat', contextWindow: 256_000,
     });
     expect(await piAdapter.readAiConfig!(dir)).toEqual({
-      baseUrl: 'https://cn.test/v1', apiKey: 'sk-p', model: 'deepseek-chat', wireShape: 'openai-chat',
+      baseUrl: 'https://cn.test/v1', apiKey: 'sk-p', model: 'deepseek-chat', wireShape: 'openai-chat', contextWindow: 256_000,
     });
   });
 

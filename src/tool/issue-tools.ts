@@ -41,7 +41,7 @@ import {
   createIssue,
   updateIssueFields,
 } from '../workspaces/issues/mutate.js'
-import { flattenBoardRows } from '../workspaces/issues/board.js'
+import { flattenBoardRows, type BoardInvalidWorkspace, type BoardRow } from '../workspaces/issues/board.js'
 
 /** Resolve THIS workspace's absolute checkout dir, or a clean error. */
 function selfDir(ctx: WorkspaceToolContext): { ok: true; dir: string } | { ok: false; error: string } {
@@ -64,6 +64,84 @@ function rowOf(issue: IssueRecord) {
     priority: issue.priority,
     assignee: issue.assignee,
     scheduled: issue.when !== undefined,
+  }
+}
+
+const ISSUE_LIST_DEFAULT_LIMIT = 8
+const ISSUE_LIST_MAX_LIMIT = 50
+const ISSUE_LIST_FOCUS_PRIORITIES = new Set(['urgent', 'high', 'medium'])
+const TERMINAL_STATUSES = new Set(['done', 'canceled'])
+const PRIORITY_RANK: Record<string, number> = {
+  urgent: 0,
+  high: 1,
+  medium: 2,
+  low: 3,
+  none: 4,
+}
+const STATUS_RANK: Record<string, number> = {
+  in_progress: 0,
+  todo: 1,
+  backlog: 2,
+  done: 3,
+  canceled: 4,
+}
+
+function compareIssueRows(a: BoardRow, b: BoardRow): number {
+  return (
+    (PRIORITY_RANK[a.priority] ?? 99) - (PRIORITY_RANK[b.priority] ?? 99) ||
+    (STATUS_RANK[a.status] ?? 99) - (STATUS_RANK[b.status] ?? 99) ||
+    Number(a.scheduled) - Number(b.scheduled) ||
+    a.workspace.tag.localeCompare(b.workspace.tag) ||
+    a.id.localeCompare(b.id)
+  )
+}
+
+function summarizeIssueRows(
+  rows: BoardRow[],
+  invalid: BoardInvalidWorkspace[],
+  selfWsId: string,
+  limit: number,
+) {
+  const active = rows.filter((row) => !TERMINAL_STATUSES.has(row.status))
+  const focus = active
+    .filter((row) => row.workspace.wsId === selfWsId || ISSUE_LIST_FOCUS_PRIORITIES.has(row.priority))
+    .sort(compareIssueRows)
+    .slice(0, limit)
+
+  const visibleKeys = new Set(focus.map((row) => `${row.workspace.wsId}/${row.id}`))
+  const hiddenActive = active.filter((row) => !visibleKeys.has(`${row.workspace.wsId}/${row.id}`))
+  const hiddenLowPriority = hiddenActive.filter((row) => !ISSUE_LIST_FOCUS_PRIORITIES.has(row.priority)).length
+  const hiddenOverflow = Math.max(0, active.length - focus.length - hiddenLowPriority)
+  const terminal = rows.length - active.length
+
+  return {
+    ok: true as const,
+    mode: 'summary' as const,
+    summary: {
+      total: rows.length,
+      focus: focus.length,
+      hiddenActive: hiddenActive.length,
+      hiddenLowPriority,
+      hiddenOverflow,
+      terminal,
+      invalid: invalid.length,
+    },
+    issues: focus.map((row) => ({
+      id: row.id,
+      title: row.title,
+      status: row.status,
+      priority: row.priority,
+      assignee: row.assignee,
+      scheduled: row.scheduled,
+      workspace: row.workspace.tag,
+      ...(row.nameCollision ? { nameCollision: true as const } : {}),
+    })),
+    invalid: invalid.map((row) => ({
+      workspace: row.tag,
+      ...(row.error ? { error: row.error } : {}),
+    })),
+    hint:
+      'Summary shows local issues plus active urgent/high/medium rows. Use `alice-workspace issue list --mode detailed` for the full board, then `alice-workspace issue show --id <id>` before acting.',
   }
 }
 
@@ -202,22 +280,47 @@ export const issueListFactory: WorkspaceToolFactory = {
   build(ctx: WorkspaceToolContext) {
     return tool({
       description: [
-        "List the whole issue board — every workspace's issues as title rows",
-        '(scan titles first; use issue_show to read one in full).',
+        'List the issue board for agent startup.',
         '',
-        'Each row carries id, title, status, priority, assignee, whether it',
-        "self-schedules, and the owning `workspace` ({ wsId, tag }). A row whose",
-        'title clashes across workspaces is flagged `nameCollision`. Workspaces',
-        'whose issues dir is unreadable are surfaced in `invalid`, not dropped.',
+        'Default `summary` mode is intentionally small: it shows local issues',
+        'plus active urgent/high/medium rows from the global board, hiding',
+        'low-priority scheduled noise behind counts. Use `mode:"detailed"`',
+        'when you are deliberately auditing the whole board.',
       ].join('\n'),
-      inputSchema: z.object({}),
-      execute: async () => {
+      inputSchema: z.object({
+        mode: z
+          .enum(['summary', 'detailed'])
+          .optional()
+          .describe('summary (default) returns a short startup-safe focus list; detailed returns every row.'),
+        limit: z
+          .number()
+          .int()
+          .min(1)
+          .max(ISSUE_LIST_MAX_LIMIT)
+          .optional()
+          .describe(`Max summary focus rows (default ${ISSUE_LIST_DEFAULT_LIMIT}; ignored in detailed mode).`),
+      }),
+      execute: async ({ mode, limit }) => {
         // GLOBAL board when the service-backed reader is wired (the
         // `alice-workspace` surface). Reads EVERY workspace's issues.
         if (ctx.board) {
           const snapshot = await ctx.board.snapshot()
           const { rows, invalid } = flattenBoardRows(snapshot)
-          return { ok: true as const, issues: rows, invalid }
+          if (mode === 'detailed') {
+            return {
+              ok: true as const,
+              mode: 'detailed' as const,
+              count: rows.length,
+              issues: rows.sort(compareIssueRows),
+              invalid,
+            }
+          }
+          return summarizeIssueRows(
+            rows,
+            invalid,
+            ctx.workspaceId,
+            limit ?? ISSUE_LIST_DEFAULT_LIMIT,
+          )
         }
         // FALLBACK (no service: older contexts / unit tests): this workspace's
         // own files only, preserving the original self-scoped behavior.
@@ -225,9 +328,28 @@ export const issueListFactory: WorkspaceToolFactory = {
         if (!dir.ok) return { ok: false as const, error: dir.error }
         const res = await readWorkspaceIssues(dir.dir)
         if (res.ok) {
-          return { ok: true as const, issues: res.issues.map(rowOf), invalid: res.invalid }
+          const rows = res.issues.map((issue) => ({
+            ...rowOf(issue),
+            workspace: { wsId: ctx.workspaceId, tag: ctx.workspaceLabel },
+            ...(issue.when !== undefined ? { scheduled: true } : { scheduled: false }),
+          }))
+          if (mode === 'detailed') {
+            return { ok: true as const, mode: 'detailed' as const, count: rows.length, issues: rows, invalid: res.invalid }
+          }
+          return summarizeIssueRows(
+            rows,
+            res.invalid.map((invalid) => ({
+              wsId: ctx.workspaceId,
+              tag: ctx.workspaceLabel,
+              error: `${invalid.id}: ${invalid.error}`,
+            })),
+            ctx.workspaceId,
+            limit ?? ISSUE_LIST_DEFAULT_LIMIT,
+          )
         }
-        if (res.reason === 'absent') return { ok: true as const, issues: [], invalid: [] }
+        if (res.reason === 'absent') {
+          return summarizeIssueRows([], [], ctx.workspaceId, limit ?? ISSUE_LIST_DEFAULT_LIMIT)
+        }
         return { ok: false as const, error: res.error }
       },
     })

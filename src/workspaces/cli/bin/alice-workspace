@@ -85,6 +85,18 @@ async function manifest(base) {
     const msg = r.body && r.body.error ? r.body.error : `HTTP ${r.status}`
     fail(typeof msg === 'string' ? msg : JSON.stringify(msg))
   }
+  if (!r.body || typeof r.body !== 'object' || !r.body.groups || typeof r.body.groups !== 'object') {
+    const kind =
+      typeof r.body === 'string' && r.body.trim().startsWith('<')
+        ? 'HTML'
+        : r.body === null
+          ? 'empty response'
+          : typeof r.body
+    fail(
+      `invalid OpenAlice CLI manifest from ${base}/manifest (${kind}) — ` +
+        'check OPENALICE_TOOL_URL / OPENALICE_TOOL_SOCKET and point at the tools endpoint, not the Vite UI page.',
+    )
+  }
   return r.body
 }
 

@@ -78,10 +78,16 @@ describe('credentialToWorkspaceAiCred', () => {
         expect(cred.wireShape).toBe('openai-chat')
         expect(cred.authMode).toBeUndefined()
         expect(cred.wireApi).toBeUndefined()
+        expect(cred.contextWindow).toBe(1_000_000)
         expect(cred.apiKey).toBe('k')
         expect(cred.baseUrl).toBe('https://gw.example.com/v1')
       })
     }
+  })
+
+  it('lets opencode/pi override the default context window', () => {
+    const cred = credentialToWorkspaceAiCred(chatOnlyGateway, 'pi', { model: 'some-model', contextWindow: 256_000 })!
+    expect(cred.contextWindow).toBe(256_000)
   })
 })
 
