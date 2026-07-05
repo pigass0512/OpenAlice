@@ -1,11 +1,10 @@
-import { useCallback, useEffect, useState, type Dispatch, type SetStateAction } from 'react'
+import { useCallback, useEffect, useState, type Dispatch, type ReactNode, type SetStateAction } from 'react'
 import { Gauge, LockKeyhole, ShieldCheck, type LucideIcon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import { api, type AppConfig } from '../api'
 import type { TradingMode } from '../api/types'
 import { ConfirmDialog } from '../components/ConfirmDialog'
-import { ConfigSection } from '../components/form'
 import { PageHeader } from '../components/PageHeader'
 import { PageLoading } from '../components/StateViews'
 import { Toggle } from '../components/Toggle'
@@ -50,16 +49,38 @@ export function AgentPermissionsPage() {
     <div className="flex flex-col flex-1 min-h-0">
       <PageHeader title={t('settings.agentPermissions.title')} />
       <div className="flex-1 overflow-y-auto">
-        <div className="max-w-[880px] mx-auto">
+        <div className="mx-auto w-full max-w-[980px] px-4 md:px-6">
           <TradingModeSection />
-          <ConfigSection
+          <PermissionSection
             title={t('settings.agentPermissions.aiPush.title')}
             description={t('settings.agentPermissions.aiPush.description')}
           >
             <AiTradingToggle config={config} setConfig={setConfig} />
-          </ConfigSection>
+          </PermissionSection>
         </div>
       </div>
+    </div>
+  )
+}
+
+function PermissionSection({
+  title,
+  description,
+  children,
+}: {
+  title: string
+  description?: string
+  children: ReactNode
+}) {
+  return (
+    <div className="grid min-w-0 grid-cols-1 gap-4 border-b border-border/60 py-6 last:border-b-0 xl:grid-cols-[260px_minmax(0,1fr)] xl:gap-10">
+      <div className="min-w-0 xl:pt-0.5">
+        <h3 className="text-[14px] font-semibold text-text">{title}</h3>
+        {description && (
+          <p className="mt-1.5 max-w-[42rem] text-[13px] leading-relaxed text-text-muted/70">{description}</p>
+        )}
+      </div>
+      <div className="min-w-0">{children}</div>
     </div>
   )
 }
@@ -73,7 +94,7 @@ function TradingModeSection() {
   const setMode = useTradingMode((s) => s.setMode)
 
   return (
-    <ConfigSection
+    <PermissionSection
       title={t('settings.agentPermissions.mode.title')}
       description={t('settings.agentPermissions.mode.description')}
     >
@@ -125,7 +146,7 @@ function TradingModeSection() {
           {error}
         </div>
       )}
-    </ConfigSection>
+    </PermissionSection>
   )
 }
 
@@ -162,7 +183,7 @@ function AiTradingToggle({
   return (
     <>
       <div className="flex items-center justify-between gap-4 py-1">
-        <div className="flex-1">
+        <div className="min-w-0 flex-1">
           <span className="text-sm font-medium text-text">{t('settings.agent.allowAiTrading')}</span>
           <p className="text-[12px] text-text-muted mt-0.5 leading-relaxed">
             {enabled ? t('settings.agent.allowAiTradingOn') : t('settings.agent.allowAiTradingOff')}
