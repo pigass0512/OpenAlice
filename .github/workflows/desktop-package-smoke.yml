@@ -13,6 +13,8 @@ on:
       - "pnpm-lock.yaml"
       - "scripts/assert-desktop-package.mjs"
       - "scripts/desktop-packaged-smoke.mjs"
+      - "scripts/desktop-packaged-smoke-plan.mjs"
+      - "scripts/smoke-packaged-toolchain.mjs"
       - "scripts/vendor-managed-runtime.mjs"
       - "src/core/paths.ts"
       - "src/core/runtime-profile.ts"
@@ -31,6 +33,8 @@ on:
       - "pnpm-lock.yaml"
       - "scripts/assert-desktop-package.mjs"
       - "scripts/desktop-packaged-smoke.mjs"
+      - "scripts/desktop-packaged-smoke-plan.mjs"
+      - "scripts/smoke-packaged-toolchain.mjs"
       - "scripts/vendor-managed-runtime.mjs"
       - "src/core/paths.ts"
       - "src/core/runtime-profile.ts"
@@ -90,3 +94,6 @@ jobs:
 
       - name: Assert packaged resource layout
         run: pnpm electron:assert-package
+
+      - name: Smoke packaged managed toolchain
+        run: pnpm electron:smoke-toolchain
