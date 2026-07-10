@@ -618,15 +618,24 @@ it saves. Hand parallel tracks off to cloud Claude sessions.
 - **NEVER delete `master`, `dev`, or `local` branches** — `master` and
   `dev` are GitHub-protected (`allow_deletions: false`,
   `allow_force_pushes: false`). `local` is conventionally permanent too.
-- When merging PRs, **NEVER use `--delete-branch`** — destroys source
-  branch history. The branch can stay; future tooling needs the SHAs.
-- **Default PR merge command is `gh pr merge <N> --merge`**. Prefer merge
-  commits over squash commits because the original commit log is often
-  the best fine-grained index for later archaeology: detailed commit
+- **Feature branches are disposable execution lanes, not permanent archives.**
+  Keep one while its PR is open or the work is still unmerged; delete its
+  remote head immediately after the PR merges. GitHub's
+  `delete_branch_on_merge` repository setting should remain enabled. If the
+  merge path does not delete the head automatically, delete it explicitly
+  after confirming `mergedAt` is set.
+- **Merged is the deletion proof.** Never delete a branch merely because it
+  looks old, its PR was closed without merging, or its worktree is dirty.
+  Preserve those branches until the work is either merged or deliberately
+  abandoned by the maintainer.
+- **Default PR merge command is `gh pr merge <N> --merge --delete-branch`**.
+  Prefer merge commits over squash commits because the original commit log is
+  often the best fine-grained index for later archaeology: detailed commit
   messages make it much easier to trace why a dependency, workflow, or
   subsystem changed. Squash only when the user explicitly asks for it or
-  the branch history is genuinely messy, and even then never combine it
-  with `--delete-branch`.
+  the branch history is genuinely messy. Branch deletion after a successful
+  merge is still required either way; the PR and the target branch are the
+  durable record.
 - `archive/dev-pre-beta6` is a historical snapshot — do not modify or
   delete.
 - **After merging a PR into `dev`**, always `git fetch origin && git merge
@@ -669,8 +678,9 @@ Then branch on the result:
    git merge origin/dev     # routine work
    # or: git merge origin/master  # explicit master hotfix / promotion work
    ```
-   Then continue the work. If the branch was already merged, open a fresh
-   branch from the current target lane instead of pushing more commits there.
+   Then continue the work. If the branch was already merged, treat it as
+   stale: do not push more commits there. Clean up the old branch/worktree
+   when safe and open a fresh branch from the current target lane.
 
 4. **`HEAD` is `local`** — this is the shared local-collab branch.
    First sync `dev` in (because cloud sessions may have shipped while
@@ -727,8 +737,16 @@ Omit if none.>
 🤖 Generated with [Claude Code](https://claude.com/claude-code)
 ```
 
-After merge: `git checkout dev && git pull origin dev`. Don't keep working
-on the post-merge branch.
+After merge, branch cleanup is part of the definition of done:
+
+1. Confirm the PR is merged and its head branch was deleted on GitHub.
+2. In a normal checkout, `git checkout dev && git pull origin dev`, then
+   delete the local feature branch.
+3. In a dedicated worktree, stop using it, remove the clean worktree, and
+   delete its local feature branch. Never force-remove a dirty worktree.
+
+Don't keep working on or resurrect the post-merge branch. Any follow-up starts
+from updated `origin/dev` on a new branch and gets its own PR.
 
 ### Local / shared `local` branch (the multi-AI-on-one-worktree exception)
 
@@ -746,9 +764,12 @@ git push -u origin local
 Subsequent local sessions: just `git checkout local` (open-of-session
 checklist already pulled origin and merged `dev`).
 
-When `local` is ready to ship — either piecewise (one PR per coherent
-chunk, base `dev`) or as a batch — that's a director decision, not a
-default. Ask the user before opening the PR.
+When `local` is ready to ship, do not use the permanent `local` branch itself
+as a PR head: automatic post-merge deletion would remove it. Create a
+short-lived delivery branch for one coherent chunk (or a maintainer-approved
+batch), open that branch's PR against `dev`, and delete the delivery branch
+after merge. What to ship from `local` remains a director decision; ask the
+user before opening the PR.
 
 ### Promotion: `dev` -> `master`
 
