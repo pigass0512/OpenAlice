@@ -37,6 +37,7 @@ describe('buildPackagedToolchainSmokePlan', () => {
       expect(plan.commands.map((command) => command.label)).toEqual([
         'packaged Electron Node mode',
         'managed Pi through packaged Electron Node',
+        'workspace CLI payload through packaged Electron Node',
       ])
       expect(packagedElectronExecutable(appRoot, 'darwin')?.replaceAll('\\', '/'))
         .toContain('OpenAlice.app/Contents/MacOS/OpenAlice')
@@ -76,12 +77,13 @@ describe('buildPackagedToolchainSmokePlan', () => {
       expect(plan.commands.map((command) => command.label)).toEqual([
         'packaged Electron Node mode',
         'managed Pi through packaged Electron Node',
+        'workspace CLI payload through packaged Electron Node',
         'managed git.exe',
         'managed bash.exe',
         'managed sh.exe can resolve git and bash on PATH',
       ])
-      expect(plan.commands[2].command.replaceAll('\\', '/')).toContain('vendor/git/win32-x64/cmd/git.exe')
-      expect(plan.commands[4].env?.PATH.replaceAll('\\', '/')).toContain('vendor/git/win32-x64/mingw64/bin')
+      expect(plan.commands[3].command.replaceAll('\\', '/')).toContain('vendor/git/win32-x64/cmd/git.exe')
+      expect(plan.commands[5].env?.PATH.replaceAll('\\', '/')).toContain('vendor/git/win32-x64/mingw64/bin')
     } finally {
       rmSync(root, { recursive: true, force: true })
     }

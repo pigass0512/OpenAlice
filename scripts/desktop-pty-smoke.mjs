@@ -168,10 +168,22 @@ const finish = (code, message) => {
 const maybeRunCliSmoke = () => {
   if (!ptyPassed || cliStarted || !socketPath || !workspaceId) return
   cliStarted = true
-  const cliPath = join(repoRoot, 'src', 'workspaces', 'cli', 'bin', 'alice')
-  execFile(process.execPath, [cliPath], {
+  const cliPath = join(
+    repoRoot,
+    'src',
+    'workspaces',
+    'cli',
+    'bin',
+    process.platform === 'win32' ? 'alice.cmd' : 'alice',
+  )
+  // Execute the product launcher itself. Packaged workspaces do not feed the
+  // extensionless command to a host Node process; the launcher selects the
+  // managed Electron Node and the explicit `.cjs` payload.
+  execFile(cliPath, [], {
+    shell: process.platform === 'win32',
     env: {
       ...process.env,
+      OPENALICE_MANAGED_PI_NODE_PATH: process.execPath,
       AQ_WS_ID: workspaceId,
       OPENALICE_TOOL_SOCKET: socketPath,
       OPENALICE_TOOL_URL: '/cli',

@@ -57,6 +57,15 @@ managed Bash path. Workspace child processes receive the PortableGit command
 directories on `PATH`, so the default packaged flow does not require Node,
 npm, Git for Windows, WSL, or a system agent CLI.
 
+Workspace-facing OpenAlice commands (`alice`, `alice-workspace`, `traderhub`,
+and `alice-uta`) also do not depend on a host Node installation. Their POSIX
+and Windows launchers execute the explicit `openalice-cli.cjs` payload through
+the Electron executable recorded in `OPENALICE_MANAGED_PI_NODE_PATH`, with
+`ELECTRON_RUN_AS_NODE=1`. Source/dev falls back to `node` from the contributor
+environment. Keep the public commands as launchers: executing extensionless
+JavaScript directly makes behavior depend on the host Node version and the
+nearest `package.json` module type.
+
 The Windows package currently retains dugite's embedded Git payload as well as
 PortableGit. This duplication is intentional until all Workspace Git call
 sites have moved behind an OpenAlice-owned wrapper.
@@ -169,6 +178,9 @@ Keep these true together:
   incomplete package.
 - Pi and PortableGit versions, download URLs, and checksums remain pinned in
   `scripts/vendor-managed-runtime.mjs`.
+- Every packaged Workspace CLI includes the shared `openalice-cli.cjs` payload,
+  its POSIX launcher, and its Windows `.cmd` twin; packaged smoke must execute
+  the payload through Electron Node.
 - A runtime version bump updates its assertions and packaged smoke coverage in
   the same change.
 - Windows keeps a single case-insensitive `PATH` entry after Workspace env

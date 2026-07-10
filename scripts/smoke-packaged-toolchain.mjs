@@ -36,6 +36,18 @@ export function buildPackagedToolchainSmokePlan(packageResult) {
     expectStdout: /\b0\.80\.6\b/,
   })
 
+  commands.push({
+    label: 'workspace CLI payload through packaged Electron Node',
+    command: electron,
+    args: [join(packageResult.appRoot, 'src', 'workspaces', 'cli', 'bin', 'openalice-cli.cjs')],
+    env: {
+      ELECTRON_RUN_AS_NODE: '1',
+      OPENALICE_CLI_BIN: 'traderhub',
+    },
+    expectStatus: 1,
+    expectStderr: /traderhub: AQ_WS_ID is not set/,
+  })
+
   if (packageResult.platform === 'win32') {
     const git = packageResult.manifest.git?.[packageResult.platformArch]
     if (!git) {
@@ -104,11 +116,18 @@ function runCommand(repoRoot, appRoot, spec) {
   if (result.error) {
     throw new Error(`${spec.label} failed to start: ${result.error.message}`)
   }
-  if (result.status !== 0) {
-    throw new Error(`${spec.label} exited ${result.status ?? 'unknown'}${result.signal ? ` (${result.signal})` : ''}`)
+  const expectedStatus = spec.expectStatus ?? 0
+  if (result.status !== expectedStatus) {
+    throw new Error(
+      `${spec.label} exited ${result.status ?? 'unknown'} instead of ${expectedStatus}` +
+      `${result.signal ? ` (${result.signal})` : ''}`,
+    )
   }
   if (spec.expectStdout && !spec.expectStdout.test(stdout)) {
     throw new Error(`${spec.label} stdout did not match ${spec.expectStdout}: ${JSON.stringify(stdout)}`)
+  }
+  if (spec.expectStderr && !spec.expectStderr.test(stderr)) {
+    throw new Error(`${spec.label} stderr did not match ${spec.expectStderr}: ${JSON.stringify(stderr)}`)
   }
 }
 
