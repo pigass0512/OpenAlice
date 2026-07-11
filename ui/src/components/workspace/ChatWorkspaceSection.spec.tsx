@@ -85,8 +85,11 @@ describe('ChatWorkspaceSection actions', () => {
 
     expect(newChat.className).toContain('w-full')
     expect(newChat.textContent).toBe('New chat')
-    expect(workspaceHeading.parentElement?.contains(newWorkspace)).toBe(true)
-    expect(newWorkspace.querySelector('.lucide-folder-plus')).toBeTruthy()
+    expect(newChat.querySelector('.lucide-message-square-plus')).toBeTruthy()
+    expect(workspaceHeading.parentElement?.nextElementSibling?.contains(newWorkspace)).toBe(true)
+    expect(newWorkspace.className).toContain('w-full')
+    expect(newWorkspace.textContent).toBe('New workspace')
+    expect(newWorkspace.querySelector('.lucide-panels-top-left')).toBeTruthy()
     expect(newSession.querySelector('.lucide-message-square-plus')).toBeTruthy()
 
     fireEvent.click(newChat)
