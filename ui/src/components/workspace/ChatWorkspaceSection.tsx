@@ -14,9 +14,8 @@ import { useTranslation } from 'react-i18next'
 import {
   ChevronDown,
   ChevronRight,
-  FolderPlus,
   MessageSquarePlus,
-  Plus,
+  PanelsTopLeft,
   Settings as SettingsIcon,
   X,
 } from 'lucide-react'
@@ -101,23 +100,26 @@ export function ChatWorkspaceSection(): ReactElement | null {
           onClick={() => openOrFocus({ kind: 'chat-landing', params: {} })}
           className="flex w-full items-center gap-2 rounded-lg border border-accent/25 bg-accent/10 px-3 py-2.5 text-left text-[13px] font-medium text-text transition-colors hover:border-accent/45 hover:bg-accent/15"
         >
-          <Plus size={15} strokeWidth={2.25} className="shrink-0 text-accent" />
+          <MessageSquarePlus size={15} strokeWidth={2.15} className="shrink-0 text-accent" />
           <span>{t('chat.newChat')}</span>
         </button>
       </div>
 
-      <div className="flex items-center justify-between gap-2 px-3 pb-1 pt-1.5">
+      <div className="px-3 pb-1 pt-1.5">
         <span className="min-w-0 truncate text-[10px] font-semibold uppercase tracking-[0.12em] text-text-muted/60">
           {t('nav.item.workspaces')}
         </span>
+      </div>
+      <div className="px-2 pb-1">
         <button
           type="button"
           onClick={() => setShowCreate(true)}
-          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-text-muted/65 transition-colors hover:bg-bg-tertiary hover:text-text"
+          className="flex w-full items-center gap-2 rounded-lg border border-border/70 bg-bg-secondary/45 px-3 py-2 text-left text-[12px] font-medium text-text-muted transition-colors hover:border-border hover:bg-bg-tertiary hover:text-text"
           title={t('chat.newWorkspace')}
           aria-label={t('chat.newWorkspace')}
         >
-          <FolderPlus size={14} strokeWidth={2} />
+          <PanelsTopLeft size={14} strokeWidth={2} className="shrink-0" />
+          <span>{t('chat.newWorkspace')}</span>
         </button>
       </div>
 
@@ -163,7 +165,7 @@ export function ChatWorkspaceSection(): ReactElement | null {
               onClick={() => setShowCreate(true)}
               className="mt-2 inline-flex items-center gap-1.5 text-[12px] font-medium text-text-muted transition-colors hover:text-text"
             >
-              <FolderPlus size={13} strokeWidth={2} />
+              <PanelsTopLeft size={13} strokeWidth={2} />
               <span>{t('chat.newWorkspace')}</span>
             </button>
           </li>
