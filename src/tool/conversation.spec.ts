@@ -5,6 +5,7 @@ import type { WorkspaceToolContext } from '../core/workspace-tool-center.js'
 import {
   conversationAskFactory,
   conversationAwaitFactory,
+  conversationCollectFactory,
   conversationReadFactory,
 } from './conversation.js'
 
@@ -155,6 +156,53 @@ describe('conversation_await', () => {
         status: 'running',
         next: 'alice-workspace conversation read --task-id task-1',
       })
+  })
+})
+
+describe('conversation_collect', () => {
+  it('awaits several tasks concurrently and preserves input order', async () => {
+    const read = vi.fn(async (taskId: string) => ({
+      ...completedTask,
+      taskId,
+      resumeId: `resume-${taskId}`,
+      structured: {
+        ...completedTask.structured,
+        assistantText: `reply ${taskId}`,
+      },
+    }))
+    const tool = conversationCollectFactory.build(context({
+      conversation: { ask: vi.fn(), read },
+    }))
+    await expect(run(tool, { taskId: ['run-a', 'run-b'] })).resolves.toMatchObject({
+      ok: true,
+      complete: true,
+      count: 2,
+      running: 0,
+      results: [
+        { taskId: 'run-a', assistantText: 'reply run-a' },
+        { taskId: 'run-b', assistantText: 'reply run-b' },
+      ],
+    })
+    expect(read).toHaveBeenCalledWith('run-a')
+    expect(read).toHaveBeenCalledWith('run-b')
+  })
+
+  it('reports missing tasks without hiding completed replies', async () => {
+    const tool = conversationCollectFactory.build(context({
+      conversation: {
+        ask: vi.fn(),
+        read: vi.fn(async (taskId: string) => taskId === 'missing' ? null : completedTask),
+      },
+    }))
+    await expect(run(tool, { taskId: ['task-1', 'missing'] })).resolves.toMatchObject({
+      ok: false,
+      complete: false,
+      missing: 1,
+      results: [
+        { ok: true, assistantText: 'The report followed the issue rule.' },
+        { ok: false, taskId: 'missing' },
+      ],
+    })
   })
 })
 

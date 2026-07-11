@@ -239,6 +239,9 @@ function parseFlags(tokens, schema) {
       // A JSON object value (--doc '{"path":"x"}') is kept as-is so future
       // per-doc fields keep working; a bare path is wrapped into { path }.
       docs.push(val && typeof val === 'object' ? val : { path: String(val) })
+    } else if (propertySchema && propertySchema.type === 'array') {
+      const current = Array.isArray(args[schemaKey]) ? args[schemaKey] : []
+      args[schemaKey] = current.concat(Array.isArray(val) ? val : [val])
     } else {
       args[schemaKey] = val
     }
@@ -287,8 +290,13 @@ function printVerbHelp(group, verb, cmd) {
     const type = p.type || (p.enum ? 'enum' : '')
     const req = required.has(n) ? ' (required)' : ''
     const flag = n.replace(/([a-z0-9])([A-Z])/g, '$1-$2').toLowerCase()
-    const valueHint = type && type !== 'boolean' ? ' <' + type + '>' : ''
-    out(`  --${flag}${valueHint}${req}   ${firstLine(p.description || '')}`)
+    const valueHint = type === 'array'
+      ? ' <value>'
+      : type && type !== 'boolean'
+        ? ' <' + type + '>'
+        : ''
+    const repeatable = type === 'array' ? ' (repeatable)' : ''
+    out(`  --${flag}${valueHint}${req}${repeatable}   ${firstLine(p.description || '')}`)
   }
 }
 

@@ -155,6 +155,7 @@ describe('CLI launchers and payload', () => {
                 issueId: { type: 'string' },
                 accountId: { type: 'string' },
                 await: { type: 'boolean' },
+                taskId: { type: 'array', items: { type: 'string' } },
               },
             },
           },
@@ -190,14 +191,22 @@ describe('CLI launchers and payload', () => {
       expect(help.stdout).toContain('--issue-id')
       expect(help.stdout).toContain('--await')
       expect(help.stdout).not.toContain('--await <boolean>')
+      expect(help.stdout).toContain('--task-id <value> (repeatable)')
+      expect(help.stdout).not.toContain('--task-id <array>')
       expect(help.stdout).not.toContain('--issueId')
 
       await runCli('alice-workspace', [
         'provenance', 'show', '--issue-id', 'audit', '--account-id', 'alpaca-paper', '--await',
+        '--task-id', 'run-a', '--task-id', 'run-b',
       ], env)
       expect(invocation).toEqual({
         tool: 'provenance_show',
-        args: { issueId: 'audit', accountId: 'alpaca-paper', await: true },
+        args: {
+          issueId: 'audit',
+          accountId: 'alpaca-paper',
+          await: true,
+          taskId: ['run-a', 'run-b'],
+        },
       })
     } finally {
       await new Promise<void>((resolve) => server.close(() => resolve()))

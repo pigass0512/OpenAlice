@@ -436,6 +436,7 @@ alice-workspace conversation ask --resume-id <resumeId> --prompt '<question>'
 alice-workspace conversation ask --issue-id <issueId> [--ws-id <workspaceId>] --prompt '<question>'
 alice-workspace conversation ask --ws-id <workspaceId> --prompt '<question>'
 alice-workspace conversation await --task-id <taskId>
+alice-workspace conversation collect --task-id <taskA> --task-id <taskB>
 alice-workspace conversation read --task-id <taskId>
 ```
 
@@ -456,9 +457,10 @@ never serialize them into `conversation ask`. The ask result reports a compact
 `resolution.mode`; read returns runtime status and the latest assistant text by
 default. Full tool/message blocks are diagnostic data behind `--mode detailed`.
 For one peer, `ask --await` is the preferred path. For multiple peers, dispatch
-all asks first so their runs overlap, then server-side await each task before
-synthesizing. A timed-out await preserves the task and returns its id; callers
-fall back to later await/read snapshots instead of scripting arbitrary sleeps.
+all asks first so their runs overlap, then server-side collect their task ids in
+one ordered result before synthesizing. A timed-out collect preserves every task;
+callers fall back to a later collect/read snapshot instead of scripting arbitrary
+sleeps.
 
 The first fresh reconstruction appends a `reconstructed` occurrence to the
 artifact. Later questions about that same otherwise-unattributed artifact

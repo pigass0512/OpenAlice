@@ -100,6 +100,7 @@ alice-workspace conversation ask --resume-id <resumeId> \
 alice-workspace conversation ask --ws-id <ws> \
   --prompt 'Reconstruct why this artifact was produced.' --await
 alice-workspace conversation await --task-id <taskId>
+alice-workspace conversation collect --task-id <taskA> --task-id <taskB>
 alice-workspace conversation read --task-id <taskId>
 ```
 
@@ -112,9 +113,10 @@ identifies whom to ask. Never construct or pass an internal target JSON object.
 For one question, start with `ask --await`: OpenAlice waits server-side and
 returns the final reply without making you guess a sleep duration. For several
 independent peers, issue every `ask` first without `--await` so all tasks run
-concurrently, then collect each short task id with `conversation await`. If an
-await returns `status: running`, do other useful work and await again later or
-use one-shot `conversation read`; never build a shell `sleep` polling loop.
+concurrently, then pass every short task id to one `conversation collect` call.
+If collect reports a task still `running`, do other useful work and collect
+again later or use one-shot `conversation read`; never build a shell `sleep`
+polling loop.
 
 Inspect `resolution.mode` on the ask result:
 

@@ -121,10 +121,11 @@ alice-workspace issue ask --id <issueName> --owner \
 
 For several independent peers, dispatch every question first without `--await`;
 each call returns a short task id and all runs proceed concurrently. Then collect
-them with `alice-workspace conversation await --task-id <taskId>` and compare the
-answers before reporting a conclusion. Do not write shell `sleep` loops. If an
-await call exhausts its wait budget and still reports `running`, continue useful
-work and later use `conversation await` again or a one-shot `conversation read`.
+them in one call with `alice-workspace conversation collect --task-id <taskA>
+--task-id <taskB>` and compare the answers before reporting a conclusion. Do not
+write shell `sleep` loops. If collect exhausts its wait budget and still reports
+`running`, continue useful work and later collect again or use a one-shot
+`conversation read`.
 `read --mode detailed` is diagnostic-only; normal collaboration needs the final
 reply, not the peer's complete tool trace.
 

@@ -232,6 +232,67 @@ export const conversationAwaitFactory: WorkspaceToolFactory = {
   },
 }
 
+export const conversationCollectFactory: WorkspaceToolFactory = {
+  name: 'conversation_collect',
+  build(ctx) {
+    return tool({
+      description: [
+        'Collect several already-dispatched conversation tasks in one server-side wait.',
+        '',
+        'Repeat --task-id for every peer. Tasks keep running concurrently; this command',
+        'waits for all of them and returns compact final replies in the same order.',
+        'It does not ask another model to summarize or merge the answers.',
+      ].join('\n'),
+      inputSchema: z.object({
+        taskId: z.array(z.string().min(1)).min(1).max(32)
+          .describe('Task id to collect. Repeat --task-id for multiple concurrent peers.'),
+        timeoutMs: z.coerce.number().int().positive().max(MAX_TIMEOUT_MS).optional()
+          .describe(`Server-side wait budget per task in milliseconds (default ${DEFAULT_TIMEOUT_MS}).`),
+      }),
+      execute: async ({ taskId, timeoutMs }) => {
+        if (!ctx.conversation) {
+          return { ok: false as const, error: 'workspace conversation control is unavailable' }
+        }
+        try {
+          const ids = [...new Set(taskId)]
+          const tasks = await Promise.all(ids.map((id) => awaitConversationTask(
+            ctx.conversation!,
+            id,
+            timeoutMs ?? DEFAULT_TIMEOUT_MS,
+          )))
+          const results = tasks.map((task, index) => task
+            ? {
+                ok: true as const,
+                ...taskProjection(task, 'summary'),
+                awaited: task.status !== 'running',
+              }
+            : {
+                ok: false as const,
+                taskId: ids[index]!,
+                error: `conversation task not found: ${ids[index]}`,
+              })
+          const running = results.filter((result) => result.ok && result.status === 'running').length
+          const failed = results.filter((result) => result.ok && (
+            result.status === 'failed' || result.status === 'interrupted'
+          )).length
+          const missing = results.filter((result) => !result.ok).length
+          return {
+            ok: missing === 0,
+            complete: missing === 0 && running === 0,
+            count: results.length,
+            running,
+            failed,
+            missing,
+            results,
+          }
+        } catch (err) {
+          return { ok: false as const, error: err instanceof Error ? err.message : String(err) }
+        }
+      },
+    })
+  },
+}
+
 export const conversationReadFactory: WorkspaceToolFactory = {
   name: 'conversation_read',
   build(ctx) {
@@ -269,5 +330,6 @@ export const conversationReadFactory: WorkspaceToolFactory = {
 export const conversationToolFactories: WorkspaceToolFactory[] = [
   conversationAskFactory,
   conversationAwaitFactory,
+  conversationCollectFactory,
   conversationReadFactory,
 ]

@@ -190,6 +190,7 @@ export const CLI_EXPORTS: Record<string, CliExport> = {
       conversation: {
         ask: 'conversation_ask',
         await: 'conversation_await',
+        collect: 'conversation_collect',
         read: 'conversation_read',
       },
     },
