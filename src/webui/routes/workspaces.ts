@@ -1284,6 +1284,10 @@ export function createWorkspaceRoutes(
     if (!record) return c.json({ error: 'not_found' }, 404);
     const snapshot = svc.webPi.get(token);
     if (!snapshot) return c.json({ error: 'webpi_not_running' }, 409);
+    const knownRevision = Number.parseInt(c.req.query('revision') ?? '', 10);
+    if (Number.isSafeInteger(knownRevision) && knownRevision === snapshot.revision) {
+      return c.json({ unchanged: true, revision: snapshot.revision });
+    }
     return c.json({ snapshot });
   });
 

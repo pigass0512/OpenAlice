@@ -999,6 +999,7 @@
 .webpi-empty { padding: 12vh 16px; text-align: center; color: var(--color-text-muted); font-size: 13px; }
 .webpi-message { display: flex; align-items: flex-start; gap: 10px; margin: 0 0 24px; }
 .webpi-message.is-user { margin-left: 12%; }
+.webpi-message.is-tool { margin: -12px 0 16px 36px; }
 .webpi-avatar { width: 26px; height: 26px; flex: 0 0 26px; display: grid; place-items: center; border: 1px solid var(--color-border); border-radius: 8px; color: var(--color-text-muted); background: var(--color-bg-secondary); }
 .webpi-message.is-user .webpi-avatar { color: var(--color-accent); border-color: color-mix(in srgb, var(--color-accent) 35%, var(--color-border)); }
 .webpi-message-body { flex: 1; min-width: 0; font-size: 13px; line-height: 1.65; }
@@ -1008,6 +1009,12 @@
 .webpi-detail { padding: 6px 9px; border-left: 2px solid var(--color-border); color: var(--color-text-muted); font-size: 11px; }
 .webpi-detail summary { cursor: pointer; user-select: none; font-weight: 600; }
 .webpi-detail pre, .webpi-unknown { margin-top: 6px; max-height: 220px; overflow: auto; white-space: pre-wrap; font: 10px/1.5 var(--font-mono, monospace); }
+.webpi-tool-result { border: 1px solid var(--color-border); border-radius: 8px; background: color-mix(in srgb, var(--color-bg-secondary) 72%, transparent); }
+.webpi-tool-result > summary { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 6px 9px; cursor: pointer; color: var(--color-text-muted); font: 10px/1.4 var(--font-mono, monospace); user-select: none; }
+.webpi-tool-result > summary::marker { color: var(--color-text-muted); }
+.webpi-tool-result[open] > summary { border-bottom: 1px solid var(--color-border); }
+.webpi-tool-result > :not(summary) { max-height: 360px; overflow: auto; padding: 9px 11px; }
+.webpi-tool-result.is-error { border-color: color-mix(in srgb, #d65c5c 55%, var(--color-border)); }
 
 .webpi-error { display: grid; gap: 7px; margin: 20px 0; padding: 13px; border: 1px solid color-mix(in srgb, #d65c5c 50%, var(--color-border)); border-radius: 10px; color: #d65c5c; font-size: 12px; }
 .webpi-error button { width: fit-content; color: var(--color-text); text-decoration: underline; }

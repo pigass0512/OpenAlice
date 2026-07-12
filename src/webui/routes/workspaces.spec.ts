@@ -647,7 +647,7 @@ describe('WebPi surface routes', () => {
       bootstrap: vi.fn(async () => order.push('bootstrap')),
     };
     const webPi = {
-      get: vi.fn(() => null),
+      get: vi.fn(() => snapshot),
       has: vi.fn(() => false),
       stop: vi.fn(async () => false),
       prompt: vi.fn(async () => ({ ...snapshot, phase: 'working' })),
@@ -688,5 +688,12 @@ describe('WebPi surface routes', () => {
     expect(result.status).toBe(200);
     expect(webPi.prompt).toHaveBeenCalledWith(TOKEN, 'hello Pi');
     expect(result.body.snapshot.phase).toBe('working');
+  });
+
+  it('returns a tiny unchanged response when the browser already has the revision', async () => {
+    const { app } = buildWebPi();
+    const result = await get(app, `/ws-1/sessions/${TOKEN}/webpi?revision=1`);
+    expect(result.status).toBe(200);
+    expect(result.body).toEqual({ unchanged: true, revision: 1 });
   });
 });

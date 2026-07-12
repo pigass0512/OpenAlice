@@ -24,21 +24,40 @@ export function WebPiView({ wsId, sessionId, label, onSessionLost }: Props): Rea
   const [draft, setDraft] = useState('')
   const [error, setError] = useState<string | null>(null)
   const scrollerRef = useRef<HTMLDivElement | null>(null)
+  const snapshotRef = useRef<WebPiSnapshot | null>(null)
+
+  const acceptSnapshot = useCallback((next: WebPiSnapshot): void => {
+    snapshotRef.current = next
+    setSnapshot(next)
+  }, [])
 
   const refresh = useCallback(async (): Promise<void> => {
     try {
-      const next = await getWebPiSession(wsId, sessionId)
-      setSnapshot(next)
-      setError(next.error)
+      const next = await getWebPiSession(wsId, sessionId, snapshotRef.current?.revision)
+      if (next) acceptSnapshot(next)
+      setError(next?.error ?? null)
     } catch (err) {
       setError((err as Error).message)
     }
-  }, [sessionId, wsId])
+  }, [acceptSnapshot, sessionId, wsId])
 
   useEffect(() => {
-    void refresh()
-    const timer = window.setInterval(() => void refresh(), 500)
-    return () => window.clearInterval(timer)
+    let cancelled = false
+    let timer: number | null = null
+    const loop = async (): Promise<void> => {
+      await refresh()
+      if (cancelled) return
+      const phase = snapshotRef.current?.phase
+      const delay = phase === 'working' || phase === 'compacting' || phase === 'retrying'
+        ? 350
+        : 1_500
+      timer = window.setTimeout(() => void loop(), delay)
+    }
+    void loop()
+    return () => {
+      cancelled = true
+      if (timer !== null) window.clearTimeout(timer)
+    }
   }, [refresh])
 
   const messages = useMemo(() => {
@@ -60,7 +79,7 @@ export function WebPiView({ wsId, sessionId, label, onSessionLost }: Props): Rea
     setDraft('')
     setError(null)
     try {
-      setSnapshot(await promptWebPiSession(wsId, sessionId, message))
+      acceptSnapshot(await promptWebPiSession(wsId, sessionId, message))
     } catch (err) {
       setDraft(message)
       setError((err as Error).message)
@@ -69,7 +88,7 @@ export function WebPiView({ wsId, sessionId, label, onSessionLost }: Props): Rea
 
   const abort = async (): Promise<void> => {
     try {
-      setSnapshot(await abortWebPiSession(wsId, sessionId))
+      acceptSnapshot(await abortWebPiSession(wsId, sessionId))
     } catch (err) {
       setError((err as Error).message)
     }
@@ -93,7 +112,7 @@ export function WebPiView({ wsId, sessionId, label, onSessionLost }: Props): Rea
           <div className="webpi-empty">This Pi conversation is ready in the browser.</div>
         )}
         {messages.map((message, index) => (
-          <PiMessage key={`${index}-${snapshot?.revision ?? 0}`} value={message} />
+          <PiMessage key={messageKey(message, index)} value={message} />
         ))}
         {error && (
           <div className="webpi-error">
@@ -147,9 +166,31 @@ function PiMessage({ value }: { readonly value: unknown }): ReactElement {
       <div className="webpi-avatar">{user ? <User size={14} /> : <Bot size={14} />}</div>
       <div className="webpi-message-body">
         <div className="webpi-role">{user ? 'You' : tool ? String(record?.['toolName'] ?? 'Tool') : 'Pi'}</div>
-        <PiContent value={content ?? value} />
+        {tool && record
+          ? <PiToolResult record={record} />
+          : <PiContent value={content ?? value} />}
       </div>
     </article>
+  )
+}
+
+function PiToolResult({ record }: { readonly record: Record<string, unknown> }): ReactElement {
+  const failed = record['isError'] === true
+  const [open, setOpen] = useState(failed)
+  const content = record['content']
+  const chars = contentText(content).length
+  return (
+    <details
+      className={`webpi-tool-result${failed ? ' is-error' : ''}`}
+      open={open}
+      onToggle={(event) => setOpen(event.currentTarget.open)}
+    >
+      <summary>
+        <span>{failed ? 'Failed' : 'Result'} from {String(record['toolName'] ?? 'tool')}</span>
+        <span>{formatChars(chars)}</span>
+      </summary>
+      {open && <PiContent value={content} />}
+    </details>
   )
 }
 
@@ -190,4 +231,24 @@ function asRecord(value: unknown): Record<string, unknown> | null {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
     ? value as Record<string, unknown>
     : null
+}
+
+function contentText(value: unknown): string {
+  if (typeof value === 'string') return value
+  if (!Array.isArray(value)) return ''
+  return value.flatMap((part) => {
+    const item = asRecord(part)
+    return typeof item?.['text'] === 'string' ? [item['text']] : []
+  }).join('\n')
+}
+
+function formatChars(chars: number): string {
+  if (chars < 1_000) return `${chars} chars`
+  return `${(chars / 1_000).toFixed(chars < 10_000 ? 1 : 0)}k chars`
+}
+
+function messageKey(value: unknown, index: number): string {
+  const record = asRecord(value)
+  const stable = record?.['id'] ?? record?.['toolCallId'] ?? record?.['timestamp'] ?? record?.['role'] ?? 'message'
+  return `${index}-${String(stable)}`
 }

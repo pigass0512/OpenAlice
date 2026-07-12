@@ -582,12 +582,23 @@ export async function openWebPiSession(wsId: string, sessionId: string): Promise
   return body.snapshot;
 }
 
-export async function getWebPiSession(wsId: string, sessionId: string): Promise<WebPiSnapshot> {
+export async function getWebPiSession(
+  wsId: string,
+  sessionId: string,
+  revision?: number,
+): Promise<WebPiSnapshot | null> {
+  const query = revision === undefined ? '' : `?revision=${encodeURIComponent(String(revision))}`;
   const res = await fetch(
-    `/api/workspaces/${encodeURIComponent(wsId)}/sessions/${encodeURIComponent(sessionId)}/webpi`,
+    `/api/workspaces/${encodeURIComponent(wsId)}/sessions/${encodeURIComponent(sessionId)}/webpi${query}`,
   );
-  const body = (await res.json().catch(() => null)) as { snapshot?: WebPiSnapshot; message?: string } | null;
-  if (!res.ok || !body?.snapshot) throw new Error(body?.message ?? `WebPi read failed: ${res.status}`);
+  const body = (await res.json().catch(() => null)) as {
+    snapshot?: WebPiSnapshot;
+    unchanged?: boolean;
+    message?: string;
+  } | null;
+  if (!res.ok) throw new Error(body?.message ?? `WebPi read failed: ${res.status}`);
+  if (body?.unchanged) return null;
+  if (!body?.snapshot) throw new Error('WebPi response has no snapshot');
   return body.snapshot;
 }
 
