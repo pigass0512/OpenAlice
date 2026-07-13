@@ -151,6 +151,8 @@ Read the relevant guide before editing its subsystem:
   packaging, managed Pi, PortableGit/Bash, runtime profiles, and Workspace PATH.
 - [[docs/docker-deployment.md]] — [Docker deployment](docs/docker-deployment.md): server image topology,
   remote-host safety, persistence, health, and container acceptance.
+- [[docs/connector-service.md]] — [Connector Service](docs/connector-service.md): optional external Inbox
+  notification adapters, sealed credentials, health, and Guardian lifecycle.
 - [[docs/workspace-agent-guidance.md]] — [Workspace agent guidance](docs/workspace-agent-guidance.md): prompt
   layers, skill ownership, live CLI authority, and guidance versioning.
 - [[docs/workspace-lifecycle.md]] — [Workspace and Session lifecycle](docs/workspace-lifecycle.md): offboarding,

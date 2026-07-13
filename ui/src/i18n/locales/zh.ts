@@ -67,6 +67,7 @@ export const zh: Resources = {
       agentPermissions: '智能体权限',
       trading: '交易',
       issues: 'Issues',
+      connectors: '连接器',
       mcpServer: 'MCP 服务器',
       marketData: '市场数据',
       newsSources: '新闻源',

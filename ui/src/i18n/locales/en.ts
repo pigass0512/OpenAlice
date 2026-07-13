@@ -78,6 +78,7 @@ export const en = {
       agentPermissions: 'Agent Permissions',
       trading: 'Trading',
       issues: 'Issues',
+      connectors: 'Connectors',
       mcpServer: 'MCP Server',
       marketData: 'Market Data',
       newsSources: 'News Sources',

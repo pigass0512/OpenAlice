@@ -243,11 +243,12 @@ generated `src/migrations/INDEX.md`.
 | Workspace offboarding, restore/purge, Session retirement | [Workspace and Session lifecycle](workspace-lifecycle.md) |
 | Broker/account/execution behavior | `services/uta/src/domain/trading/` + [UTA live testing](uta-live-testing.md) |
 | Shared Alice ↔ UTA shapes | `packages/uta-protocol/` and both callers |
+| External Inbox notifications and IM adapters | [Connector Service](connector-service.md) |
 | Renderer/API surface | `ui/`, `src/webui/`, and matching demo handlers |
 | Issues, schedules, headless runs, Inbox delivery | [Workspace issues and scheduling](workspace-issues-and-scheduling.md) |
 | Retired event-bus scheduler and UTA journal boundary | [Event-system retirement note](event-system.md) |
 | User-state schema | `src/migrations/` + generated migration index |
-| Process lock/recovery | `packages/guardian-runtime/` and all three launchers |
+| Process lock/recovery and optional-service supervision | `packages/guardian-runtime/` and all three launchers |
 
 When current code disagrees with this guide, verify the runtime behavior and
 update the guide in the same change rather than leaving a second source of

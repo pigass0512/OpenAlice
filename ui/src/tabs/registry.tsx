@@ -20,6 +20,7 @@ import { AgentPermissionsPage } from '../pages/AgentPermissionsPage'
 import { AIProviderPage } from '../pages/AIProviderPage'
 import { TradingPage } from '../pages/TradingPage'
 import { MCPPage } from '../pages/MCPPage'
+import { ConnectorsPage } from '../pages/ConnectorsPage'
 import { MarketDataPage } from '../pages/MarketDataPage'
 import { NewsCollectorPage } from '../pages/NewsCollectorPage'
 import { UTADetailPage } from '../pages/UTADetailPage'
@@ -250,6 +251,7 @@ const settingsCategoryTitle: Record<
   'agent-permissions': 'Agent Permissions',
   trading: 'Trading',
   issues: 'Issues',
+  connectors: 'Connectors',
   mcp: 'MCP Server',
   'market-data': 'Market Data',
   'news-collector': 'News Sources',
@@ -262,6 +264,7 @@ function SettingsRouter({ spec }: ViewProps<'settings'>) {
     case 'agent-permissions': return <AgentPermissionsPage />
     case 'trading': return <TradingPage />
     case 'issues': return <IssueSettingsPage />
+    case 'connectors': return <ConnectorsPage />
     case 'mcp': return <MCPPage />
     case 'market-data': return <MarketDataPage />
     case 'news-collector': return <NewsCollectorPage />

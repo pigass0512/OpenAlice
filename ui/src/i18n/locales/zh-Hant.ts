@@ -75,6 +75,7 @@ export const zhHant: Resources = {
       agentPermissions: '智慧體權限',
       trading: '交易',
       issues: 'Issues',
+      connectors: '連接器',
       mcpServer: 'MCP 伺服器',
       marketData: '市場資料',
       newsSources: '新聞來源',
