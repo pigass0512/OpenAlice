@@ -10,6 +10,7 @@ import {
   findOpenAliceRoot,
   parseLocalStartArgs,
   prepareSourceCheckout,
+  readHomeWebPort,
   startLocal,
 } from './local-start.mjs'
 
@@ -68,6 +69,62 @@ describe('OpenAlice local Runtime launcher', () => {
     expect(resolveRoot).not.toHaveBeenCalled()
     expect(launchBrowser).toHaveBeenCalledWith('http://127.0.0.1:47331')
     expect(stdout.write).toHaveBeenCalledWith(expect.stringContaining('already running'))
+  })
+
+  it('reuses a healthy same-home dev Runtime on its configured nonstandard port', async () => {
+    const resolveRoot = vi.fn()
+    const launchBrowser = vi.fn(async () => undefined)
+    const stdout = { write: vi.fn() }
+    const probeRuntime = vi.fn(async (url) => url === 'http://127.0.0.1:3002')
+
+    await expect(startLocal(parseLocalStartArgs([]), {
+      env: {},
+      homeDir: '/tmp/user',
+      probeRuntime,
+      readRuntimeStatus: async () => ({
+        class: 'owned_elsewhere',
+        owner: { surface: 'dev', pid: 123 },
+        endpoints: {},
+      }),
+      readConfiguredWebPort: async () => 3002,
+      resolveRoot,
+      launchBrowser,
+      stdout,
+    })).resolves.toBe(0)
+
+    expect(probeRuntime).toHaveBeenNthCalledWith(1, 'http://127.0.0.1:47331')
+    expect(probeRuntime).toHaveBeenNthCalledWith(2, 'http://127.0.0.1:3002')
+    expect(resolveRoot).not.toHaveBeenCalled()
+    expect(launchBrowser).toHaveBeenCalledWith('http://127.0.0.1:3002')
+    expect(stdout.write).toHaveBeenCalledWith(expect.stringContaining('/tmp/user/.openalice'))
+  })
+
+  it('prefers an owner-advertised web endpoint over persisted port configuration', async () => {
+    const launchBrowser = vi.fn(async () => undefined)
+    const readConfiguredWebPort = vi.fn()
+
+    await expect(startLocal(parseLocalStartArgs([]), {
+      probeRuntime: async (url) => url === 'http://127.0.0.1:41000',
+      readRuntimeStatus: async () => ({
+        class: 'owned_elsewhere',
+        endpoints: { web: 'http://127.0.0.1:41000' },
+      }),
+      readConfiguredWebPort,
+      launchBrowser,
+      stdout: { write: vi.fn() },
+    })).resolves.toBe(0)
+
+    expect(readConfiguredWebPort).not.toHaveBeenCalled()
+    expect(launchBrowser).toHaveBeenCalledWith('http://127.0.0.1:41000')
+  })
+
+  it('reads only a valid web port from the selected home', async () => {
+    await expect(readHomeWebPort('/tmp/home', {
+      readFileImpl: async () => '{"web":3002}',
+    })).resolves.toBe(3002)
+    await expect(readHomeWebPort('/tmp/home', {
+      readFileImpl: async () => '{"web":70000}',
+    })).resolves.toBeNull()
   })
 
   it('does not inherit auth bypass or takeover into an ordinary local launch', () => {

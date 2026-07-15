@@ -14,6 +14,7 @@ import {
   inspectRuntimeBuildTools,
   runtimeBuildToolsError,
 } from './runtime-deps.mjs'
+import { readRuntimeStatus as readGuardianRuntimeStatus } from './server-control.mjs'
 
 const RUNTIME_ARTIFACTS = [
   'dist/main.js',
@@ -87,6 +88,8 @@ export function parseLocalStartArgs(argv) {
 export async function startLocal(options, dependencies = {}) {
   const stdout = dependencies.stdout ?? process.stdout
   const env = dependencies.env ?? process.env
+  const homeDir = dependencies.homeDir ?? homedir()
+  const homeRoot = resolve(options.homeRoot ?? env['OPENALICE_HOME'] ?? join(homeDir, '.openalice'))
   const localUrl = `http://${LOOPBACK}:${options.port}`
   const probeRuntime = dependencies.probeRuntime ?? probeOpenAlice
   const launchBrowser = dependencies.launchBrowser ?? openBrowser
@@ -97,6 +100,19 @@ export async function startLocal(options, dependencies = {}) {
     return 0
   }
 
+  const readRuntimeStatus = dependencies.readRuntimeStatus ?? readGuardianRuntimeStatus
+  const readConfiguredWebPort = dependencies.readConfiguredWebPort ?? readHomeWebPort
+  const status = await readRuntimeStatus({ homeRoot, timeoutMs: 500 }, { env, homeDir })
+  const discoveredUrl = status.endpoints?.web
+    ?? (status.class === 'owned_elsewhere'
+      ? configuredLocalUrl(await readConfiguredWebPort(homeRoot))
+      : null)
+  if (discoveredUrl && discoveredUrl !== localUrl && await probeRuntime(discoveredUrl)) {
+    stdout.write(`OpenAlice is already running at ${discoveredUrl} for ${homeRoot}\n`)
+    if (options.openBrowser) await launchBrowser(discoveredUrl)
+    return 0
+  }
+
   const resolveRoot = dependencies.resolveRoot ?? findOpenAliceRoot
   const appDir = await resolveRoot(options.appDir ?? dependencies.cwd ?? process.cwd())
   const prepareSource = dependencies.prepareSource ?? prepareSourceCheckout
@@ -104,9 +120,7 @@ export async function startLocal(options, dependencies = {}) {
 
   const spawnProcess = dependencies.spawnProcess ?? spawn
   const waitForRuntime = dependencies.waitForRuntime ?? waitForOpenAlice
-  const homeDir = dependencies.homeDir ?? homedir()
   const nodeBinary = dependencies.nodeBinary ?? process.execPath
-  const homeRoot = resolve(options.homeRoot ?? env['OPENALICE_HOME'] ?? join(homeDir, '.openalice'))
   const runtimeEnv = buildLocalRuntimeEnv(env, {
     appDir,
     homeRoot,
@@ -154,6 +168,21 @@ export async function startLocal(options, dependencies = {}) {
     runtime.kill('SIGTERM')
     throw error
   }
+}
+
+export async function readHomeWebPort(homeRoot, options = {}) {
+  const readFileImpl = options.readFileImpl ?? readFile
+  try {
+    const parsed = JSON.parse(await readFileImpl(join(homeRoot, 'data', 'config', 'ports.json'), 'utf8'))
+    const port = Number(parsed?.web)
+    return Number.isInteger(port) && port >= 1 && port <= 65_535 ? port : null
+  } catch {
+    return null
+  }
+}
+
+function configuredLocalUrl(port) {
+  return port ? `http://${LOOPBACK}:${port}` : null
 }
 
 export function buildLocalRuntimeEnv(env, options) {

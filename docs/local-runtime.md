@@ -85,8 +85,11 @@ and `--yes` remains installation-only for automation.
 
 The CLI stays in the foreground and owns the Guardian lifetime. `Ctrl+C` stops
 the local Runtime. A normal second launch reuses an already healthy local URL;
-it does not kill the existing owner. `openalice start --takeover` explicitly
-requests the existing Guardian recovery flow.
+it does not kill the existing owner. Discovery first uses the selected home's
+Guardian control endpoint; for a source `pnpm dev` owner without control
+metadata, it verifies that owner's configured Web port before reuse. It never
+guesses that another home owns a reachable port. `openalice start --takeover`
+explicitly requests the existing Guardian recovery flow.
 
 Useful controls:
 
