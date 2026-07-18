@@ -1,4 +1,11 @@
-export type ThemePaletteId = 'paper' | 'porcelain' | 'graphite' | 'midnight'
+export type ThemePaletteId =
+  | 'paper'
+  | 'porcelain'
+  | 'linen'
+  | 'graphite'
+  | 'midnight'
+  | 'moss'
+  | 'iris'
 export type ThemePaletteAppearance = 'light' | 'dark'
 export type ThemePreferenceMode = 'auto' | 'day' | 'night'
 export type ThemePreferenceSlot = Exclude<ThemePreferenceMode, 'auto'>
@@ -21,12 +28,15 @@ export const DEFAULT_NIGHT_PALETTE: ThemePaletteId = 'graphite'
 export const THEME_PALETTES = [
   { id: 'paper', appearance: 'light', labelKey: 'theme.palette.paper', descriptionKey: 'theme.paletteDescription.paper' },
   { id: 'porcelain', appearance: 'light', labelKey: 'theme.palette.porcelain', descriptionKey: 'theme.paletteDescription.porcelain' },
+  { id: 'linen', appearance: 'light', labelKey: 'theme.palette.linen', descriptionKey: 'theme.paletteDescription.linen' },
   { id: 'graphite', appearance: 'dark', labelKey: 'theme.palette.graphite', descriptionKey: 'theme.paletteDescription.graphite' },
   { id: 'midnight', appearance: 'dark', labelKey: 'theme.palette.midnight', descriptionKey: 'theme.paletteDescription.midnight' },
+  { id: 'moss', appearance: 'dark', labelKey: 'theme.palette.moss', descriptionKey: 'theme.paletteDescription.moss' },
+  { id: 'iris', appearance: 'dark', labelKey: 'theme.palette.iris', descriptionKey: 'theme.paletteDescription.iris' },
 ] as const satisfies readonly ThemePaletteDefinition[]
 
 export function isThemePaletteId(value: unknown): value is ThemePaletteId {
-  return value === 'paper' || value === 'porcelain' || value === 'graphite' || value === 'midnight'
+  return THEME_PALETTES.some(({ id }) => id === value)
 }
 
 export function isThemePreferenceMode(value: unknown): value is ThemePreferenceMode {

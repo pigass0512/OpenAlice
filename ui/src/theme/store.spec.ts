@@ -20,12 +20,12 @@ describe('theme preference persistence', () => {
   it('allows either slot to select any palette', () => {
     expect(normalizeThemePreferences({
       theme: 'day',
-      dayPalette: 'midnight',
-      nightPalette: 'paper',
+      dayPalette: 'moss',
+      nightPalette: 'linen',
     })).toEqual({
       theme: 'day',
-      dayPalette: 'midnight',
-      nightPalette: 'paper',
+      dayPalette: 'moss',
+      nightPalette: 'linen',
     })
   })
 

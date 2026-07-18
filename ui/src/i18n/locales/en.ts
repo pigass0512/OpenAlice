@@ -644,12 +644,18 @@ export const en = {
   theme: {
     mode: { auto: 'Auto', day: 'Day', night: 'Night' },
     switchTo: 'Switch to {{mode}}',
-    palette: { paper: 'Paper', porcelain: 'Porcelain', graphite: 'Graphite', midnight: 'Midnight' },
+    palette: {
+      paper: 'Paper', porcelain: 'Porcelain', linen: 'Linen',
+      graphite: 'Graphite', midnight: 'Midnight', moss: 'Moss', iris: 'Iris',
+    },
     paletteDescription: {
       paper: 'Warm, editorial neutrals',
       porcelain: 'Cool, crisp workspace',
+      linen: 'Oat, ink, and terracotta',
       graphite: 'Neutral low-glare dark',
       midnight: 'Deep blue night palette',
+      moss: 'Forest ink with soft amber',
+      iris: 'Violet dusk with cool cyan',
     },
   },
   dev: {

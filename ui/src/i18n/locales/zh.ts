@@ -633,12 +633,18 @@ export const zh: Resources = {
   theme: {
     mode: { auto: '自动', day: '日间', night: '暗夜' },
     switchTo: '切换到{{mode}}',
-    palette: { paper: '纸张', porcelain: '白瓷', graphite: '石墨', midnight: '午夜' },
+    palette: {
+      paper: '纸张', porcelain: '白瓷', linen: '亚麻',
+      graphite: '石墨', midnight: '午夜', moss: '苔色', iris: '鸢尾',
+    },
     paletteDescription: {
       paper: '温暖的编辑风中性色',
       porcelain: '清爽的冷调工作区',
+      linen: '燕麦纸、墨棕与陶土色',
       graphite: '低眩光的中性深色',
       midnight: '深蓝调暗夜色卡',
+      moss: '墨绿底色与柔和琥珀',
+      iris: '紫蓝暮色与冷青点色',
     },
   },
   dev: {

@@ -38,7 +38,9 @@ const CORE_TOKENS = [
   'ring',
 ] as const
 
-const PALETTE_IDS: readonly ThemePaletteId[] = ['paper', 'porcelain', 'graphite', 'midnight']
+const PALETTE_IDS: readonly ThemePaletteId[] = [
+  'paper', 'porcelain', 'linen', 'graphite', 'midnight', 'moss', 'iris',
+]
 
 const ALLOWED_LITERAL_COLOR_FILES = new Set([
   // Single product color authority.
@@ -82,11 +84,26 @@ function paletteToken(id: ThemePaletteId, token: string): string {
   return value!
 }
 
+function hexContrast(a: string, b: string): number {
+  const luminance = (hex: string): number => {
+    expect(hex).toMatch(/^#[\da-f]{6}$/i)
+    const channels = [1, 3, 5].map((start) => {
+      const value = Number.parseInt(hex.slice(start, start + 2), 16) / 255
+      return value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4
+    })
+    return channels[0]! * 0.2126 + channels[1]! * 0.7152 + channels[2]! * 0.0722
+  }
+  const [lighter, darker] = [luminance(a), luminance(b)].sort((x, y) => y - x)
+  return (lighter! + 0.05) / (darker! + 0.05)
+}
+
 describe('semantic color contract', () => {
-  it('ships one universal library with four complete semantic cards', () => {
+  it('ships one universal library with seven complete semantic cards', () => {
     expect(THEME_PALETTES.map(({ id }) => id)).toEqual(PALETTE_IDS)
-    expect(THEME_PALETTES.map(({ appearance }) => appearance)).toEqual(['light', 'light', 'dark', 'dark'])
-    expect(new Set(PALETTE_IDS).size).toBe(4)
+    expect(THEME_PALETTES.map(({ appearance }) => appearance)).toEqual([
+      'light', 'light', 'light', 'dark', 'dark', 'dark', 'dark',
+    ])
+    expect(new Set(PALETTE_IDS).size).toBe(7)
 
     for (const id of PALETTE_IDS) {
       const block = paletteBlock(id)
@@ -97,7 +114,7 @@ describe('semantic color contract', () => {
     }
   })
 
-  it('keeps every semantic token symmetric across all four cards', () => {
+  it('keeps every semantic token symmetric across all seven cards', () => {
     const tokens = [...paletteBlock('paper').matchAll(/^\s*(--[\w-]+):/gm)].map((match) => match[1])
     expect(tokens.length).toBeGreaterThan(CORE_TOKENS.length)
 
@@ -107,7 +124,7 @@ describe('semantic color contract', () => {
     }
   })
 
-  it('keeps the four visible palette preview signatures distinct', () => {
+  it('keeps all visible palette preview signatures distinct', () => {
     const previewTokens = [
       'background',
       'secondary',
@@ -130,6 +147,22 @@ describe('semantic color contract', () => {
     expect(palette).toContain('.oa-palette-preview-terminal')
   })
 
+  it('keeps the new product and ANSI text roles at normal-text contrast', () => {
+    const ansiTokens = ['red', 'green', 'yellow', 'blue', 'magenta', 'cyan'] as const
+    for (const id of ['linen', 'moss', 'iris'] as const) {
+      expect(hexContrast(paletteToken(id, 'foreground'), paletteToken(id, 'background')), id).toBeGreaterThanOrEqual(4.5)
+      expect(hexContrast(paletteToken(id, 'muted-foreground'), paletteToken(id, 'background')), id).toBeGreaterThanOrEqual(4.5)
+      expect(hexContrast(paletteToken(id, 'primary-foreground'), paletteToken(id, 'primary')), id).toBeGreaterThanOrEqual(4.5)
+      expect(hexContrast(paletteToken(id, 'terminal-foreground'), paletteToken(id, 'terminal-background')), id).toBeGreaterThanOrEqual(4.5)
+      for (const token of ansiTokens) {
+        expect(
+          hexContrast(paletteToken(id, `terminal-${token}`), paletteToken(id, 'terminal-background')),
+          `${id}: terminal-${token}`,
+        ).toBeGreaterThanOrEqual(4.5)
+      }
+    }
+  })
+
   it('assigns any palette to either preference slot', () => {
     expect(resolveEffectiveSlot('auto', false)).toBe('day')
     expect(resolveEffectiveSlot('auto', true)).toBe('night')
@@ -139,8 +172,13 @@ describe('semantic color contract', () => {
     expect(resolveEffectivePalette('auto', true, 'porcelain', 'midnight')).toBe('midnight')
     expect(resolveEffectivePalette('day', true, 'midnight', 'paper')).toBe('midnight')
     expect(resolveEffectivePalette('night', false, 'midnight', 'paper')).toBe('paper')
+    expect(resolveEffectivePalette('day', false, 'moss', 'linen')).toBe('moss')
+    expect(resolveEffectivePalette('night', true, 'iris', 'linen')).toBe('linen')
     expect(paletteAppearance('midnight')).toBe('dark')
     expect(paletteAppearance('paper')).toBe('light')
+    expect(paletteAppearance('linen')).toBe('light')
+    expect(paletteAppearance('moss')).toBe('dark')
+    expect(paletteAppearance('iris')).toBe('dark')
     expect(palette).not.toMatch(/data-theme|prefers-color-scheme/)
   })
 

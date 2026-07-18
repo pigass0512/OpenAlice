@@ -633,12 +633,18 @@ export const ja: Resources = {
   theme: {
     mode: { auto: '自動', day: '昼', night: '夜' },
     switchTo: '{{mode}}に切り替え',
-    palette: { paper: 'ペーパー', porcelain: 'ポーセリン', graphite: 'グラファイト', midnight: 'ミッドナイト' },
+    palette: {
+      paper: 'ペーパー', porcelain: 'ポーセリン', linen: 'リネン',
+      graphite: 'グラファイト', midnight: 'ミッドナイト', moss: 'モス', iris: 'アイリス',
+    },
     paletteDescription: {
       paper: '温かみのある編集向け中間色',
       porcelain: '涼しく鮮明なワークスペース',
+      linen: 'オート麦色、墨色、テラコッタ',
       graphite: '低反射のニュートラルダーク',
       midnight: '深いブルーの夜間パレット',
+      moss: '森の墨色と柔らかな琥珀色',
+      iris: '紫の夕暮れと涼やかなシアン',
     },
   },
   dev: {

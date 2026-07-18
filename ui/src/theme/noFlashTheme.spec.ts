@@ -53,8 +53,8 @@ describe('no-flash theme bootstrap', () => {
   })
 
   it('uses the system only to select a slot in Auto', () => {
-    const state = { theme: 'auto', dayPalette: 'midnight', nightPalette: 'paper' }
-    expect(applyNoFlashTheme(state, false).palette).toBe('midnight')
-    expect(applyNoFlashTheme(state, true).palette).toBe('paper')
+    const state = { theme: 'auto', dayPalette: 'linen', nightPalette: 'iris' }
+    expect(applyNoFlashTheme(state, false).palette).toBe('linen')
+    expect(applyNoFlashTheme(state, true).palette).toBe('iris')
   })
 })

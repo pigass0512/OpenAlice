@@ -192,6 +192,98 @@
   );
 }
 
+:root[data-palette="linen"],
+[data-palette-preview="linen"] {
+  color-scheme: light;
+
+  --background: #f6f0e6;
+  --foreground: #342c27;
+  --card: #fffaf1;
+  --card-foreground: #342c27;
+  --popover: #fffaf1;
+  --popover-foreground: #342c27;
+  --primary: #9a4f3d;
+  --primary-foreground: #fffaf1;
+  --secondary: #ece2d3;
+  --secondary-foreground: #342c27;
+  --muted: #ddd0bd;
+  --muted-foreground: #73675d;
+  --accent: rgba(154, 79, 61, 0.07);
+  --accent-foreground: #342c27;
+  --destructive: #b83c38;
+  --destructive-foreground: #fffaf1;
+  --border: #d2c2ad;
+  --input: #d2c2ad;
+  --ring: #9a4f3d;
+
+  --accent-strong: rgba(154, 79, 61, 0.12);
+  --primary-muted: rgba(154, 79, 61, 0.15);
+  --success: #427354;
+  --success-foreground: #fffaf1;
+  --warning: #956118;
+  --warning-foreground: #fffaf1;
+  --warning-background: #f5e6c5;
+  --warning-border: #bd8b36;
+  --info: #4f6f8f;
+  --info-foreground: #fffaf1;
+  --ai-action: #7c5e8f;
+  --ai-action-foreground: #fffaf1;
+  --backdrop: rgba(35, 26, 22, 0.5);
+  --code-background: rgba(52, 44, 39, 0.075);
+  --report-canvas: #ffffff;
+  --shadow-color: #342c27;
+
+  --terminal-background: #f8f1e6;
+  --terminal-foreground: #352d28;
+  --terminal-cursor: #9a4f3d;
+  --terminal-cursor-accent: #fffaf1;
+  --terminal-selection-background: rgba(154, 79, 61, 0.24);
+  --terminal-selection-foreground: #342c27;
+  --terminal-black: #342c27;
+  --terminal-red: #b83c38;
+  --terminal-green: #427354;
+  --terminal-yellow: #956118;
+  --terminal-blue: #4f6f8f;
+  --terminal-magenta: #7c5e8f;
+  --terminal-cyan: #3e7772;
+  --terminal-white: #786b60;
+  --terminal-bright-black: #5f554d;
+  --terminal-bright-red: #9d302f;
+  --terminal-bright-green: #32684a;
+  --terminal-bright-yellow: #784b0d;
+  --terminal-bright-blue: #365a79;
+  --terminal-bright-magenta: #674b7b;
+  --terminal-bright-cyan: #286762;
+  --terminal-bright-white: #221d1a;
+
+  --chart-1: #9a4f3d;
+  --chart-2: #427354;
+  --chart-3: #956118;
+  --chart-4: #7c5e8f;
+  --chart-5: #3e7772;
+  --chart-positive: #427354;
+  --chart-negative: #b83c38;
+  --chart-positive-muted: rgba(66, 115, 84, 0.3);
+  --chart-negative-muted: rgba(184, 60, 56, 0.3);
+  --chart-axis: #73675d;
+  --chart-grid: #d2c2ad;
+
+  --sidebar: #ece2d3;
+  --sidebar-foreground: #342c27;
+  --sidebar-primary: #9a4f3d;
+  --sidebar-primary-foreground: #fffaf1;
+  --sidebar-accent: #ddd0bd;
+  --sidebar-accent-foreground: #342c27;
+  --sidebar-border: #d2c2ad;
+  --sidebar-ring: #9a4f3d;
+
+  --app-background-wash: radial-gradient(
+    circle at 50% 22%,
+    rgba(154, 79, 61, 0.055),
+    transparent 38rem
+  );
+}
+
 :root[data-palette="graphite"],
 [data-palette-preview="graphite"] {
   color-scheme: dark;
@@ -372,6 +464,190 @@
   --app-background-wash: radial-gradient(
     circle at 50% 24%,
     rgba(90, 162, 255, 0.065),
+    transparent 38rem
+  );
+}
+
+:root[data-palette="moss"],
+[data-palette-preview="moss"] {
+  color-scheme: dark;
+
+  --background: #0e1512;
+  --foreground: #d8e2d8;
+  --card: #151e19;
+  --card-foreground: #d8e2d8;
+  --popover: #151e19;
+  --popover-foreground: #d8e2d8;
+  --primary: #8fbe78;
+  --primary-foreground: #0c140f;
+  --secondary: #111a16;
+  --secondary-foreground: #d8e2d8;
+  --muted: #1d2922;
+  --muted-foreground: #91a093;
+  --accent: rgba(143, 190, 120, 0.075);
+  --accent-foreground: #d8e2d8;
+  --destructive: #e07a6f;
+  --destructive-foreground: #1c0b09;
+  --border: #2a3930;
+  --input: #2a3930;
+  --ring: #8fbe78;
+
+  --accent-strong: rgba(143, 190, 120, 0.13);
+  --primary-muted: rgba(143, 190, 120, 0.17);
+  --success: #7fc59a;
+  --success-foreground: #09150e;
+  --warning: #d6ad62;
+  --warning-foreground: #1d1609;
+  --warning-background: #211b0f;
+  --warning-border: #806633;
+  --info: #81b4c4;
+  --info-foreground: #071417;
+  --ai-action: #b49ad1;
+  --ai-action-foreground: #160f20;
+  --backdrop: rgba(3, 8, 5, 0.62);
+  --code-background: rgba(2, 7, 4, 0.4);
+  --report-canvas: #ffffff;
+  --shadow-color: #020604;
+
+  --terminal-background: #0b120f;
+  --terminal-foreground: #dce7dc;
+  --terminal-cursor: #8fbe78;
+  --terminal-cursor-accent: #0b120f;
+  --terminal-selection-background: rgba(143, 190, 120, 0.3);
+  --terminal-selection-foreground: #f2f7f1;
+  --terminal-black: #33433a;
+  --terminal-red: #e07a6f;
+  --terminal-green: #8ccf9f;
+  --terminal-yellow: #d6ad62;
+  --terminal-blue: #81b4c4;
+  --terminal-magenta: #b49ad1;
+  --terminal-cyan: #75c3b2;
+  --terminal-white: #dce7dc;
+  --terminal-bright-black: #607166;
+  --terminal-bright-red: #ef9a90;
+  --terminal-bright-green: #a9dfb8;
+  --terminal-bright-yellow: #e6c681;
+  --terminal-bright-blue: #a3cad5;
+  --terminal-bright-magenta: #cbb7df;
+  --terminal-bright-cyan: #98d7ca;
+  --terminal-bright-white: #f3f7f2;
+
+  --chart-1: #8fbe78;
+  --chart-2: #7fc59a;
+  --chart-3: #d6ad62;
+  --chart-4: #b49ad1;
+  --chart-5: #81b4c4;
+  --chart-positive: #7fc59a;
+  --chart-negative: #e07a6f;
+  --chart-positive-muted: rgba(127, 197, 154, 0.33);
+  --chart-negative-muted: rgba(224, 122, 111, 0.33);
+  --chart-axis: #91a093;
+  --chart-grid: #2a3930;
+
+  --sidebar: #111a16;
+  --sidebar-foreground: #d8e2d8;
+  --sidebar-primary: #8fbe78;
+  --sidebar-primary-foreground: #0c140f;
+  --sidebar-accent: #1d2922;
+  --sidebar-accent-foreground: #d8e2d8;
+  --sidebar-border: #2a3930;
+  --sidebar-ring: #8fbe78;
+
+  --app-background-wash: radial-gradient(
+    circle at 50% 26%,
+    rgba(143, 190, 120, 0.055),
+    transparent 38rem
+  );
+}
+
+:root[data-palette="iris"],
+[data-palette-preview="iris"] {
+  color-scheme: dark;
+
+  --background: #11101a;
+  --foreground: #e7e2f2;
+  --card: #191724;
+  --card-foreground: #e7e2f2;
+  --popover: #191724;
+  --popover-foreground: #e7e2f2;
+  --primary: #9b8cff;
+  --primary-foreground: #120f22;
+  --secondary: #15131f;
+  --secondary-foreground: #e7e2f2;
+  --muted: #242136;
+  --muted-foreground: #9b96ad;
+  --accent: rgba(155, 140, 255, 0.08);
+  --accent-foreground: #e7e2f2;
+  --destructive: #f1768e;
+  --destructive-foreground: #210b12;
+  --border: #322e46;
+  --input: #322e46;
+  --ring: #9b8cff;
+
+  --accent-strong: rgba(155, 140, 255, 0.14);
+  --primary-muted: rgba(155, 140, 255, 0.18);
+  --success: #64c7a4;
+  --success-foreground: #081510;
+  --warning: #e0b76d;
+  --warning-foreground: #201607;
+  --warning-background: #221a0d;
+  --warning-border: #84652e;
+  --info: #82b8ff;
+  --info-foreground: #081426;
+  --ai-action: #d28cff;
+  --ai-action-foreground: #1c0c27;
+  --backdrop: rgba(5, 3, 12, 0.64);
+  --code-background: rgba(4, 3, 10, 0.42);
+  --report-canvas: #ffffff;
+  --shadow-color: #05030c;
+
+  --terminal-background: #0d0c15;
+  --terminal-foreground: #e8e4f3;
+  --terminal-cursor: #9b8cff;
+  --terminal-cursor-accent: #0d0c15;
+  --terminal-selection-background: rgba(155, 140, 255, 0.32);
+  --terminal-selection-foreground: #ffffff;
+  --terminal-black: #353147;
+  --terminal-red: #f1768e;
+  --terminal-green: #6fd2ad;
+  --terminal-yellow: #e0b76d;
+  --terminal-blue: #82b8ff;
+  --terminal-magenta: #d49aff;
+  --terminal-cyan: #69c8d7;
+  --terminal-white: #e8e4f3;
+  --terminal-bright-black: #68627c;
+  --terminal-bright-red: #ff9aab;
+  --terminal-bright-green: #91e0c1;
+  --terminal-bright-yellow: #edcc8f;
+  --terminal-bright-blue: #a8cdff;
+  --terminal-bright-magenta: #e3b8ff;
+  --terminal-bright-cyan: #90dbe6;
+  --terminal-bright-white: #faf8ff;
+
+  --chart-1: #9b8cff;
+  --chart-2: #64c7a4;
+  --chart-3: #e0b76d;
+  --chart-4: #d28cff;
+  --chart-5: #69c8d7;
+  --chart-positive: #64c7a4;
+  --chart-negative: #f1768e;
+  --chart-positive-muted: rgba(100, 199, 164, 0.34);
+  --chart-negative-muted: rgba(241, 118, 142, 0.34);
+  --chart-axis: #9b96ad;
+  --chart-grid: #322e46;
+
+  --sidebar: #15131f;
+  --sidebar-foreground: #e7e2f2;
+  --sidebar-primary: #9b8cff;
+  --sidebar-primary-foreground: #120f22;
+  --sidebar-accent: #242136;
+  --sidebar-accent-foreground: #e7e2f2;
+  --sidebar-border: #322e46;
+  --sidebar-ring: #9b8cff;
+
+  --app-background-wash: radial-gradient(
+    circle at 50% 24%,
+    rgba(155, 140, 255, 0.065),
     transparent 38rem
   );
 }

@@ -641,12 +641,18 @@ export const zhHant: Resources = {
   theme: {
     mode: { auto: '自動', day: '日間', night: '暗夜' },
     switchTo: '切換到{{mode}}',
-    palette: { paper: '紙張', porcelain: '白瓷', graphite: '石墨', midnight: '午夜' },
+    palette: {
+      paper: '紙張', porcelain: '白瓷', linen: '亞麻',
+      graphite: '石墨', midnight: '午夜', moss: '苔色', iris: '鳶尾',
+    },
     paletteDescription: {
       paper: '溫暖的編輯風中性色',
       porcelain: '清爽的冷調工作區',
+      linen: '燕麥紙、墨棕與陶土色',
       graphite: '低眩光的中性深色',
       midnight: '深藍調暗夜色卡',
+      moss: '墨綠底色與柔和琥珀',
+      iris: '紫藍暮色與冷青點色',
     },
   },
   dev: {
