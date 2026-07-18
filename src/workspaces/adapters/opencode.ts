@@ -1,16 +1,22 @@
 import { execFile } from 'node:child_process';
-import { rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 
 import type { CliAdapter, OnDiskSession, SpawnContext, WorkspaceAiCred } from '../cli-adapter.js';
-import { readWorkspaceFile, writeWorkspaceFile } from '../file-service.js';
+import { readWorkspaceFile } from '../file-service.js';
 import type { HeadlessOutputEvent } from '../headless-output.js';
+import { resetOwnedJsonConfig, writeOwnedJsonConfig } from './owned-json-config.js';
 
 const execFileAsync = promisify(execFile);
 
 const OPENCODE_CONFIG_PATH = 'opencode.json';
+const OPENCODE_BINDING_STATE_PATH = '.opencode/openalice-provider.json';
 const OPENCODE_PROVIDER_NAME = 'workspace';
+const OPENCODE_OWNED_PATHS = [
+  ['$schema'],
+  ['provider', OPENCODE_PROVIDER_NAME],
+  ['model'],
+] as const;
 const DEFAULT_OUTPUT_TOKENS = 16_384;
 // opencode's `@ai-sdk/openai-compatible` SDK is statically bundled into the
 // binary (no runtime `npm install`) and speaks `/v1/chat/completions` — the
@@ -44,8 +50,9 @@ function positiveNumber(value: number | null | undefined): number | null {
  *   - Provider override: `opencode.json` `provider.<name>` with a custom
  *     `baseURL` + `apiKey` + a top-level default `model = "<provider>/<id>"`.
  *     Key written directly into the workspace file (same trust model as codex's
- *     `.codex/env.json`). Reset deletes the file → opencode falls back to its
- *     global auth.
+ *     `.codex/env.json`). OpenAlice owns only `provider.workspace`, the matching
+ *     top-level model, and its schema marker; unrelated opencode config survives
+ *     both writes and reset.
  *
  *   - Hermetic spawn: `OPENCODE_DISABLE_{MODELS_FETCH,AUTOUPDATE,LSP_DOWNLOAD}`
  *     pinned in `composeEnv` so a trading workbench never phones home at spawn
@@ -220,9 +227,13 @@ export const opencodeAdapter: CliAdapter = {
   async writeAiConfig(cwd: string, cred: WorkspaceAiCred): Promise<void> {
     const hasProvider = !!(cred.baseUrl || cred.apiKey || cred.model);
     if (!hasProvider) {
-      // Reset: delete the workspace opencode.json so opencode falls back to its
-      // global auth/config. No empty stub left behind.
-      await rm(join(cwd, OPENCODE_CONFIG_PATH), { force: true });
+      await resetOwnedJsonConfig({
+        cwd,
+        configPath: OPENCODE_CONFIG_PATH,
+        statePath: OPENCODE_BINDING_STATE_PATH,
+        label: 'opencode project config',
+        legacyOwnedPaths: OPENCODE_OWNED_PATHS,
+      });
       return;
     }
 
@@ -253,6 +264,7 @@ export const opencodeAdapter: CliAdapter = {
     };
     if (cred.model) {
       const model: Record<string, unknown> = { name: cred.model };
+      if (typeof cred.reasoning === 'boolean') model['reasoning'] = cred.reasoning;
       const contextWindow = positiveNumber(cred.contextWindow);
       if (contextWindow !== null) {
         // opencode treats missing custom-model limits as 0, which disables its
@@ -263,15 +275,24 @@ export const opencodeAdapter: CliAdapter = {
       provider['models'] = { [cred.model]: model };
     }
 
-    const config: Record<string, unknown> = {
-      $schema: 'https://opencode.ai/config.json',
-      provider: { [OPENCODE_PROVIDER_NAME]: provider },
-    };
     // Top-level default model is "<provider>/<id>" so opencode resolves the
-    // workspace provider without a UI model picker.
-    if (cred.model) config['model'] = `${OPENCODE_PROVIDER_NAME}/${cred.model}`;
-
-    await writeWorkspaceFile(cwd, OPENCODE_CONFIG_PATH, JSON.stringify(config, null, 2) + '\n');
+    // workspace provider without a UI model picker. The reversible state keeps
+    // any pre-existing provider/model/options and restores them on reset.
+    await writeOwnedJsonConfig({
+      cwd,
+      configPath: OPENCODE_CONFIG_PATH,
+      statePath: OPENCODE_BINDING_STATE_PATH,
+      label: 'opencode project config',
+      entries: [
+        { path: ['$schema'], present: true, value: 'https://opencode.ai/config.json' },
+        { path: ['provider', OPENCODE_PROVIDER_NAME], present: true, value: provider },
+        {
+          path: ['model'],
+          present: !!cred.model,
+          value: cred.model ? `${OPENCODE_PROVIDER_NAME}/${cred.model}` : undefined,
+        },
+      ],
+    });
   },
 
   async readAiConfig(cwd: string): Promise<WorkspaceAiCred | null> {
@@ -306,6 +327,9 @@ export const opencodeAdapter: CliAdapter = {
     const modelConfig = model ? models[model] : undefined;
     const limit = (modelConfig?.['limit'] ?? {}) as Record<string, unknown>;
     const contextWindow = positiveNumber(limit['context'] as number | null | undefined);
+    const reasoning = typeof modelConfig?.['reasoning'] === 'boolean'
+      ? modelConfig['reasoning']
+      : undefined;
     if (baseUrl === null && apiKey === null && model === null) return null;
     // Reverse the npm package back to the wire shape.
     const npm = typeof ws['npm'] === 'string' ? (ws['npm'] as string) : '';
@@ -320,6 +344,7 @@ export const opencodeAdapter: CliAdapter = {
       wireShape,
       ...(wireShape === 'anthropic' ? { authMode: bearerKey ? 'bearer' as const : 'x-api-key' as const } : {}),
       ...(contextWindow ? { contextWindow } : {}),
+      ...(reasoning !== undefined ? { reasoning } : {}),
     };
   },
 

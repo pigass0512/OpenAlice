@@ -1154,7 +1154,7 @@ export interface AgentConfig {
   readonly model: string | null;
   /** Optional custom-model context window for opencode/Pi provider overrides. */
   readonly contextWindow?: number | null;
-  /** Pi only: whether this custom model exposes native reasoning. */
+  /** Pi/opencode custom-model reasoning capability when explicitly registered. */
   readonly reasoning?: boolean | null;
   /** Wire protocol the endpoint speaks — drives how the adapter is configured. */
   readonly wireShape?: WireShape | null;

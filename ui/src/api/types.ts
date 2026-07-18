@@ -85,6 +85,27 @@ export interface CredentialSetupGuide {
   regionHelp?: string
 }
 
+export type ModelReasoningMode = 'none' | 'optional' | 'adaptive' | 'required'
+export type ModelReasoningEffort = 'none' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh' | 'max'
+
+export interface ModelSemantics {
+  contextWindow?: number
+  maxOutputTokens?: number
+  reasoning?: {
+    mode: ModelReasoningMode
+    efforts?: ModelReasoningEffort[]
+    defaultEffort?: ModelReasoningEffort
+    interleaved?: boolean
+  }
+}
+
+export interface PresetModel {
+  id: string
+  label: string
+  /** Absent means the catalog has no verified facts for this exact model id. */
+  semantics?: ModelSemantics
+}
+
 export interface Preset {
   id: string
   label: string
@@ -93,6 +114,8 @@ export interface Preset {
   hint?: string
   defaultName: string
   schema: JsonSchema
+  /** Rich catalog entries; older servers may only expose schema.model.oneOf. */
+  models?: PresetModel[]
   /** Regions × their per-shape endpoints — the form picks a region; the
    *  credential captures that region's whole wires map (its capabilities). */
   regions?: SerializedRegion[]

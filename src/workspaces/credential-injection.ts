@@ -23,6 +23,7 @@ import {
   type CredentialWireShape,
 } from '@/core/config.js'
 import { DEFAULT_MODEL_BY_VENDOR } from '@/ai-providers/preset-catalog.js'
+import { modelSupportsReasoning, resolveModelSemantics } from '@/ai-providers/model-semantics.js'
 import type { AdapterRegistry, WorkspaceAiCred } from './cli-adapter.js'
 import type { Logger } from './logger.js'
 import type { AgentCredentialDecl } from './template-registry.js'
@@ -115,7 +116,7 @@ export interface CredentialInjectionOverrides {
   wireShape?: CredentialWireShape
   /** Context window to write for custom-model runtimes; defaults to 256K for opencode/Pi. */
   contextWindow?: number | null
-  /** Pi only — whether the selected custom model exposes native reasoning. */
+  /** Unknown-model override for Pi/opencode. Registered model facts win. */
   reasoning?: boolean | null
   /** Anthropic wire only — which header carries the key. Defaults via baseUrl heuristic. */
   authMode?: 'x-api-key' | 'bearer'
@@ -130,7 +131,7 @@ export interface CredentialInjectionOverrides {
  * (caller must surface this — never silently inject a wrong shape).
  */
 export function credentialToWorkspaceAiCred(
-  credential: Pick<Credential, 'apiKey' | 'baseUrl' | 'wireShape' | 'wires'>,
+  credential: Pick<Credential, 'vendor' | 'apiKey' | 'baseUrl' | 'wireShape' | 'wires'>,
   agentId: string,
   overrides: CredentialInjectionOverrides = {},
 ): WorkspaceAiCred | null {
@@ -149,9 +150,7 @@ export function credentialToWorkspaceAiCred(
 
   if (agentId === 'opencode' || agentId === 'pi') {
     cred.contextWindow = overrides.contextWindow ?? DEFAULT_CONTEXT_WINDOW
-  }
-  if (agentId === 'pi' && typeof overrides.reasoning === 'boolean') {
-    cred.reasoning = overrides.reasoning
+    if (typeof overrides.reasoning === 'boolean') cred.reasoning = overrides.reasoning
   }
 
   if (picked.shape === 'anthropic') {
@@ -164,7 +163,42 @@ export function credentialToWorkspaceAiCred(
     if (overrides.wireApi) cred.wireApi = overrides.wireApi
   }
 
-  return cred
+  return applyRegisteredModelSemantics(cred, agentId, credential.vendor)
+}
+
+/**
+ * Project verified model facts into runtimes that register custom models.
+ *
+ * Known reasoning capability always wins over a stale/manual bit. Unknown
+ * models retain an explicit override (or omit the field and let the runtime
+ * fall back). A configured context window remains a user policy, but it is
+ * capped at the provider-advertised maximum so we never claim an impossible
+ * limit to Pi/opencode.
+ */
+export function applyRegisteredModelSemantics(
+  cred: WorkspaceAiCred,
+  agentId: string,
+  vendor: string | null | undefined,
+): WorkspaceAiCred {
+  if (agentId !== 'opencode' && agentId !== 'pi') return cred
+  const semantics = resolveModelSemantics(vendor, cred.model)
+  if (!semantics) return cred
+
+  const next: WorkspaceAiCred = { ...cred }
+  const registeredContext = positiveNumber(semantics.contextWindow)
+  const configuredContext = positiveNumber(cred.contextWindow)
+  if (registeredContext !== null) {
+    next.contextWindow = configuredContext === null
+      ? registeredContext
+      : Math.min(configuredContext, registeredContext)
+  }
+  const reasoning = modelSupportsReasoning(semantics)
+  if (reasoning !== null) next.reasoning = reasoning
+  return next
+}
+
+function positiveNumber(value: number | null | undefined): number | null {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : null
 }
 
 /**
@@ -208,15 +242,22 @@ export async function injectWorkspaceCredentials(opts: {
       })
       continue
     }
+    const selectedModel = decl.model ?? resolveInjectionModel(credential)
+    const reasoningMatchesModel = typeof decl.reasoning === 'boolean' && (
+      decl.reasoningModel === selectedModel ||
+      // Backward compatibility: an explicit model and override already form a
+      // stable pair even in config written before reasoningModel existed.
+      (decl.reasoningModel === undefined && decl.model === selectedModel)
+    )
     const wsCred = credentialToWorkspaceAiCred(credential, agentId, {
-      ...(decl.model !== undefined ? { model: decl.model } : {}),
+      ...(selectedModel !== null ? { model: selectedModel } : {}),
       ...(decl.wireShape !== undefined ? { wireShape: decl.wireShape } : {}),
       ...(decl.contextWindow !== undefined
         ? { contextWindow: decl.contextWindow }
         : opts.defaultContextWindow !== undefined
           ? { contextWindow: opts.defaultContextWindow }
           : {}),
-      ...(decl.reasoning !== undefined ? { reasoning: decl.reasoning } : {}),
+      ...(reasoningMatchesModel ? { reasoning: decl.reasoning } : {}),
       ...(decl.authMode !== undefined ? { authMode: decl.authMode } : {}),
       ...(decl.wireApi !== undefined ? { wireApi: decl.wireApi } : {}),
     })
@@ -231,7 +272,7 @@ export async function injectWorkspaceCredentials(opts: {
     }
     await adapter.writeAiConfig(dir, wsCred)
     logger.info('workspace.cred_injected', {
-      agentId, credentialSlug: decl.credentialSlug, ...(decl.model ? { model: decl.model } : {}),
+      agentId, credentialSlug: decl.credentialSlug, ...(selectedModel ? { model: selectedModel } : {}),
     })
   }
 }

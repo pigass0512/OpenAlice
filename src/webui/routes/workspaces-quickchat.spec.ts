@@ -305,7 +305,10 @@ describe('GET /credentials — Quick Chat launch metadata', () => {
     });
 
     expect(response.status).toBe(200);
-    expect(opencode.writeAiConfig).toHaveBeenCalledWith('/manager', config);
+    expect(opencode.writeAiConfig).toHaveBeenCalledWith('/manager', {
+      ...config,
+      reasoning: true,
+    });
   });
 });
 
@@ -332,6 +335,7 @@ describe('POST /quick-chat — loginless credential injection', () => {
     expect(cred.wireShape).toBe('openai-chat');
     expect(cred.model).toBe('gpt-5.6'); // current vendor recommendation — no lastModel yet
     expect(cred.contextWindow).toBe(256_000);
+    expect(cred.reasoning).toBe(true);
     // model remembered on the cred for next time
     expect(vi.mocked(setCredentialLastModel)).toHaveBeenCalledWith('openai-1', 'gpt-5.6');
     expect(spawn).toHaveBeenCalledOnce();

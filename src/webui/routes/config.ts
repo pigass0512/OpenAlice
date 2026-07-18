@@ -12,7 +12,7 @@ import {
   type WorkspaceCredentialDefault,
   type WorkspaceContextWindow,
 } from '../../core/config.js'
-import { compatibleCredentials, pickAgentWire } from '../../workspaces/credential-injection.js'
+import { compatibleCredentials, pickAgentWire, resolveInjectionModel } from '../../workspaces/credential-injection.js'
 
 /** Validate a `{ [wireShape]: baseUrl }` body into a typed wires map. */
 function parseWires(raw: unknown): Partial<Record<CredentialWireShape, string>> {
@@ -28,6 +28,7 @@ import type { EngineContext } from '../../core/types.js'
 import { triggerUTARestart } from '../../services/uta-supervisor/restart-trigger.js'
 import { BUILTIN_PRESETS } from '../../ai-providers/presets.js'
 import type { WireShape } from '../../ai-providers/preset-catalog.js'
+import { resolveModelSemantics } from '../../ai-providers/model-semantics.js'
 import { resolveAnthropicAuthMode } from '../../core/credential-inference.js'
 import { probeByWireShape } from '../../workspaces/agent-probe.js'
 
@@ -284,12 +285,23 @@ export function createConfigRoutes(opts?: ConfigRouteOpts) {
               return c.json({ error: `${agent} cannot use ${parsedWire.data} from ${def.credentialSlug}` }, 400)
             }
           }
+          const credential = credentials[def.credentialSlug]
+          const selectedModel = typeof def.model === 'string' && def.model
+            ? def.model
+            : credential ? resolveInjectionModel(credential) : null
+          const reasoningIsRegistered = !!resolveModelSemantics(
+            credential?.vendor,
+            selectedModel,
+          )?.reasoning
           next[agent] = {
             credentialSlug: def.credentialSlug,
             ...(typeof def.model === 'string' && def.model ? { model: def.model } : {}),
             ...(parsedWire.success ? { wireShape: parsedWire.data } : {}),
-            ...(agent === 'pi' && typeof def.reasoning === 'boolean'
-              ? { reasoning: def.reasoning }
+            ...((agent === 'pi' || agent === 'opencode') &&
+              !reasoningIsRegistered &&
+              typeof selectedModel === 'string' &&
+              typeof def.reasoning === 'boolean'
+              ? { reasoning: def.reasoning, reasoningModel: selectedModel }
               : {}),
           }
         }

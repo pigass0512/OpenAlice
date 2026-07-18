@@ -31,7 +31,12 @@ import { isAgentRuntime, type CliAdapter, type WorkspaceAiCred } from '../../wor
 import { generatePetnameId } from '../../workspaces/petname-id.js';
 import { addCredential, readCredentials, readWorkspaceDefaultAgent, setCredentialLastModel, credentialWires, credentialWireShapeEnum, type Credential } from '../../core/config.js';
 import { inferCredentialVendor, resolveAnthropicAuthMode } from '../../core/credential-inference.js';
-import { compatibleCredentials, matchCredentialByApiKey, resolveInjectionModel } from '../../workspaces/credential-injection.js';
+import {
+  applyRegisteredModelSemantics,
+  compatibleCredentials,
+  matchCredentialByApiKey,
+  resolveInjectionModel,
+} from '../../workspaces/credential-injection.js';
 import {
   AgentCredentialError,
   ensureAgentCredentialReady,
@@ -1978,7 +1983,11 @@ export function createWorkspaceRoutes(
     // one-entry wires map (the vault can later add more shapes for the same key —
     // dedup-by-key upgrades in place). Subscriptions never flow through here.
     const cred: Credential = {
-      vendor: inferCredentialVendor({ agent: body?.agent, baseUrl }),
+      vendor: inferCredentialVendor({
+        agent: body?.agent,
+        baseUrl,
+        ...(wireParse.success ? { wireShape: wireParse.data } : {}),
+      }),
       ...(label ? { label } : {}),
       authType: 'api-key',
       apiKey,
@@ -2099,14 +2108,24 @@ export function createWorkspaceRoutes(
     try {
       const adapter = svc.adapters.get(agent);
       if (!adapter?.writeAiConfig) return c.json({ error: 'unknown_agent' }, 400);
-      await adapter.writeAiConfig(meta.dir, cfg);
+      const credentials = cfg.apiKey ? await readCredentials() : {};
+      const slug = matchCredentialByApiKey(credentials, cfg.apiKey);
+      const vendor = slug
+        ? credentials[slug]?.vendor
+        : inferCredentialVendor({
+            agent,
+            baseUrl: cfg.baseUrl ?? undefined,
+            wireShape: cfg.wireShape ?? undefined,
+          });
+      const projected = applyRegisteredModelSemantics(cfg, agent, vendor);
+      await adapter.writeAiConfig(meta.dir, projected);
       // Remember an explicit model choice on the originating vault credential
       // (matched by apiKey) so quick-chat can reuse it without re-prompting.
       // Best-effort: the config was already written; a miss here is cosmetic.
-      if (cfg.apiKey && cfg.model) {
+      if (projected.apiKey && projected.model) {
         try {
-          const slug = matchCredentialByApiKey(await readCredentials(), cfg.apiKey);
-          if (slug) await setCredentialLastModel(slug, cfg.model);
+          const modelSlug = slug ?? matchCredentialByApiKey(await readCredentials(), projected.apiKey);
+          if (modelSlug) await setCredentialLastModel(modelSlug, projected.model);
         } catch (err) {
           launcherLogger.warn('agent_config.last_model_record_failed', { id, agent, err });
         }

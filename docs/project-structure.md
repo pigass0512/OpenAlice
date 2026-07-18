@@ -5,6 +5,7 @@ and persistent-state layout. Update it when a top-level subsystem moves or a
 new long-lived process, package, or state root is introduced.
 
 Related guides: [[docs/managed-workspace-runtime.md]],
+[[docs/model-semantics-and-runtime-injection.md]],
 [[docs/cli-installer.md]], [[docs/local-runtime.md]], [[docs/broker-packs.md]],
 [[docs/data-locations.md]],
 [[docs/docker-deployment.md]],
@@ -99,8 +100,10 @@ docs/                          owner guides and contributor documentation
 
 The model execution loop is not in `src/ai-providers/`. Native coding-agent
 CLIs own their model loops. Alice's provider catalog describes credential and
-wire suggestions; Workspace credential injection translates a selected
-credential into the target CLI's local configuration.
+wire suggestions plus curated model semantics; Workspace credential injection
+combines credential access, model selection, and those semantics before each
+adapter projects the result into the target CLI's native configuration. Follow
+[[docs/model-semantics-and-runtime-injection.md]] for that boundary.
 
 ## Workspace Architecture
 
@@ -173,6 +176,10 @@ project skills are copied to `.agents/skills/` and Claude-specific discovery to
 `.claude/skills/`. Pi keeps providers in its normal user agent directory and
 selects a Workspace provider through `.pi/settings.json`; OpenAlice never
 redirects Pi away from its native global packages, settings, auth, or sessions.
+Claude Code and opencode keep reversible OpenAlice ownership metadata in
+`.claude/openalice-provider.json` and `.opencode/openalice-provider.json` so
+provider reset preserves unrelated native settings. Those files are sensitive
+and excluded from the Workspace repository.
 
 ## Alice and UTA Boundary
 

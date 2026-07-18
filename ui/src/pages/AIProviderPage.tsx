@@ -31,7 +31,11 @@ import {
   WIRE_SHAPE_GUIDANCE,
   agentWireShapes,
   compatibleAgentIds,
+  describeModelSemantics,
   isApiKeyPreset,
+  presetDefaultModel,
+  presetModel,
+  vendorPreset,
 } from '../lib/presetHelpers'
 import { notifyWorkspaceDefaultsChanged } from '../lib/workspaceAiEvents'
 
@@ -244,7 +248,7 @@ export function AIProviderPage() {
         </div>
 
         {/* ============== Default workspace credentials ============== */}
-        <WorkspaceDefaultsSection credentials={credentials} />
+        <WorkspaceDefaultsSection credentials={credentials} presets={presets} />
       </div>
 
       {modal && (
@@ -279,7 +283,7 @@ const ADVANCED_DEFAULT_AGENTS = [
   { id: 'codex', name: 'Codex' },
 ] as const
 
-function WorkspaceDefaultsSection({ credentials }: { credentials: CredentialSummary[] }) {
+function WorkspaceDefaultsSection({ credentials, presets }: { credentials: CredentialSummary[]; presets: Preset[] }) {
   const [data, setData] = useState<WorkspaceCredentialDefaultsResponse | null>(null)
   const [showAdvanced, setShowAdvanced] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -346,13 +350,27 @@ function WorkspaceDefaultsSection({ credentials }: { credentials: CredentialSumm
     await persist(data.defaults, contextWindow)
   }
 
-  const setPiReasoning = async (reasoning: boolean) => {
+  const setReasoningOverride = async (
+    agentId: 'pi' | 'opencode',
+    modelId: string | undefined,
+    reasoning: boolean | null,
+  ) => {
     if (!data) return
-    const current = data.defaults.pi
+    const current = data.defaults[agentId]
     if (!current) return
+    const {
+      reasoning: _previous,
+      reasoningModel: _previousModel,
+      ...withoutReasoning
+    } = current
     await persist({
       ...data.defaults,
-      pi: { ...current, reasoning },
+      [agentId]: {
+        ...withoutReasoning,
+        ...(typeof reasoning === 'boolean' && modelId
+          ? { reasoning, reasoningModel: modelId }
+          : {}),
+      },
     }, data.contextWindow)
   }
 
@@ -365,6 +383,12 @@ function WorkspaceDefaultsSection({ credentials }: { credentials: CredentialSumm
     const selectedWire = configuredWire && wireShapes.includes(configuredWire)
       ? configuredWire
       : wireShapes[0] ?? ''
+    const selectedPreset = selectedCredential ? vendorPreset(selectedCredential.vendor, presets) : undefined
+    const selectedModelId = data?.defaults[agent.id]?.model?.trim()
+      || selectedCredential?.lastModel?.trim()
+      || presetDefaultModel(selectedPreset)
+    const selectedSemantics = presetModel(selectedPreset, selectedModelId)?.semantics ?? null
+    const semanticsSummary = describeModelSemantics(selectedSemantics)
     return (
       <div key={agent.id} className="flex flex-col gap-3 rounded-lg border border-border bg-background px-4 py-3 sm:flex-row sm:items-center">
         <div className="flex-1 min-w-0">
@@ -406,17 +430,34 @@ function WorkspaceDefaultsSection({ credentials }: { credentials: CredentialSumm
               Protocol: {WIRE_SHAPE_GUIDANCE[wireShapes[0]!]}
             </p>
           )}
-          {agent.id === 'pi' && current && (
-            <label className="flex items-center gap-2 px-1 text-[10.5px] text-muted-foreground">
-              <input
-                type="checkbox"
-                aria-label="Default Pi model supports reasoning"
-                checked={data?.defaults.pi?.reasoning === true}
+          {(agent.id === 'pi' || agent.id === 'opencode') && current && semanticsSummary && (
+            <p className="px-1 text-[10.5px] leading-snug text-muted-foreground">
+              Model: <span className="font-mono">{selectedModelId}</span><br />
+              Auto: {semanticsSummary}
+            </p>
+          )}
+          {(agent.id === 'pi' || agent.id === 'opencode') && current && !selectedSemantics?.reasoning && (
+            <details className="px-1 text-[10.5px] text-muted-foreground">
+              <summary className="cursor-pointer">Advanced — unknown model reasoning</summary>
+              <select
+                aria-label={`Default ${agent.name} unknown model reasoning override`}
+                className={inputClass + ' mt-1.5'}
+                value={typeof data?.defaults[agent.id]?.reasoning !== 'boolean' ||
+                  data.defaults[agent.id]?.reasoningModel !== selectedModelId
+                  ? 'auto'
+                  : data.defaults[agent.id]!.reasoning ? 'enabled' : 'disabled'}
                 disabled={saving}
-                onChange={(event) => void setPiReasoning(event.target.checked)}
-              />
-              Model supports reasoning
-            </label>
+                onChange={(event) => void setReasoningOverride(
+                  agent.id as 'pi' | 'opencode',
+                  selectedModelId,
+                  event.target.value === 'auto' ? null : event.target.value === 'enabled',
+                )}
+              >
+                <option value="auto">Use runtime default</option>
+                <option value="enabled">Model supports reasoning</option>
+                <option value="disabled">Model has no reasoning mode</option>
+              </select>
+            </details>
           )}
         </div>
       </div>
@@ -428,8 +469,8 @@ function WorkspaceDefaultsSection({ credentials }: { credentials: CredentialSumm
       <div className="rounded-lg border border-border/50 bg-secondary/50 px-4 py-3 mb-4">
         <p className="text-[13px] text-muted-foreground leading-relaxed">
           Seed a default credential into every <em>new</em> workspace, so you don’t open the
-          per-workspace AI config each time. Choose the credential, protocol, and default context
-          limit that should be written into the workspace’s own agent config
+          per-workspace AI config each time. Choose the credential, protocol, and context policy
+          written into the workspace’s own agent config
           files at create — existing workspaces are untouched, and you can still override any
           workspace afterwards. opencode and Pi need a key to run; Claude Code and Codex normally
           run on their own CLI login (<code className="font-mono text-[11.5px]">claude login</code> /{' '}
@@ -457,7 +498,7 @@ function WorkspaceDefaultsSection({ credentials }: { credentials: CredentialSumm
             <div className="min-w-0 flex-1">
               <div className="text-[13px] font-medium text-foreground">Default context window</div>
               <p className="mt-0.5 text-[11px] leading-snug text-muted-foreground">
-                Applied to new opencode and Pi model entries. 256K avoids common higher-price tiers; existing workspaces stay unchanged.
+                Applied to new opencode and Pi model entries. Registered model limits cap impossible values automatically; 256K avoids common higher-price tiers. Existing workspaces stay unchanged.
               </p>
             </div>
             <select

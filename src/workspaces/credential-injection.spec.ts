@@ -104,7 +104,7 @@ describe('credentialToWorkspaceAiCred', () => {
     expect(credentialToWorkspaceAiCred(minimaxIntl, 'codex', { wireShape: 'anthropic' })).toBeNull()
   })
 
-  it('lets opencode/pi override the default context window', () => {
+  it('lets unknown opencode/Pi models override reasoning and context explicitly', () => {
     const cred = credentialToWorkspaceAiCred(chatOnlyGateway, 'pi', {
       model: 'some-model',
       contextWindow: 256_000,
@@ -113,7 +113,26 @@ describe('credentialToWorkspaceAiCred', () => {
     expect(cred.contextWindow).toBe(256_000)
     expect(cred.reasoning).toBe(true)
     expect(credentialToWorkspaceAiCred(chatOnlyGateway, 'opencode', { reasoning: true })?.reasoning)
-      .toBeUndefined()
+      .toBe(true)
+  })
+
+  it('auto-registers known model reasoning and caps context at the provider limit', () => {
+    expect(credentialToWorkspaceAiCred(googleKey, 'pi', {
+      model: 'gemini-3.1-flash-lite',
+      contextWindow: 1_000_000,
+      reasoning: false,
+    })).toMatchObject({
+      contextWindow: 1_000_000,
+      reasoning: true,
+    })
+
+    expect(credentialToWorkspaceAiCred(minimaxIntl, 'opencode', {
+      model: 'MiniMax-M2.7',
+      contextWindow: 1_000_000,
+    })).toMatchObject({
+      contextWindow: 204_800,
+      reasoning: true,
+    })
   })
 
   it('injects Google through the native wire for opencode and Pi only', () => {
@@ -189,6 +208,52 @@ describe('injectWorkspaceCredentials', () => {
     expect(claudeCall.cred).toMatchObject({ apiKey: 'sk-ant', model: 'claude-opus-4-8', authMode: 'x-api-key' })
     const codexCall = calls.find((c) => c.id === 'codex')!
     expect(codexCall.cred).toMatchObject({ apiKey: 'sk-oa', model: 'gpt-5.5' })
+  })
+
+  it('resolves the credential model when a creation default does not pin one', async () => {
+    const calls: WriteCall[] = []
+    const reg = new AdapterRegistry()
+    reg.register(stubAdapter('opencode', calls))
+    const { logger } = fakeLogger()
+
+    await injectWorkspaceCredentials({
+      dir: '/ws',
+      agents: ['opencode'],
+      agentCredentials: { opencode: { credentialSlug: 'openai-1' } },
+      adapterRegistry: reg,
+      credentials: {
+        'openai-1': { ...openaiKey, lastModel: 'gpt-5.5' },
+      },
+      logger,
+    })
+
+    expect(calls[0]?.cred).toMatchObject({ model: 'gpt-5.5', reasoning: true })
+  })
+
+  it('applies an unknown-model override only to the model it was decided for', async () => {
+    const calls: WriteCall[] = []
+    const reg = new AdapterRegistry()
+    reg.register(stubAdapter('pi', calls))
+    const { logger } = fakeLogger()
+    const custom = { ...chatOnlyGateway, lastModel: 'current-model' }
+
+    await injectWorkspaceCredentials({
+      dir: '/ws',
+      agents: ['pi'],
+      agentCredentials: {
+        pi: {
+          credentialSlug: 'custom-1',
+          reasoning: false,
+          reasoningModel: 'previous-model',
+        },
+      },
+      adapterRegistry: reg,
+      credentials: { 'custom-1': custom },
+      logger,
+    })
+
+    expect(calls[0]?.cred).toMatchObject({ model: 'current-model' })
+    expect(calls[0]?.cred.reasoning).toBeUndefined()
   })
 
   it('skips (loud warn) an agent declared but not enabled on the workspace', async () => {

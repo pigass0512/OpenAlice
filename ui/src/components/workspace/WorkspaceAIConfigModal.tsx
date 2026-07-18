@@ -29,6 +29,8 @@ import {
   agentWireShapes,
   anthropicAuthModeForBaseUrl,
   baseUrlToVendor,
+  describeModelSemantics,
+  presetModel,
   savedCredentialModel,
   vendorPreset,
   presetModels,
@@ -77,7 +79,8 @@ export interface FormState {
   apiKey: string
   model: string
   contextWindow: number
-  reasoning: boolean
+  /** null = let registry/runtime decide; boolean = unknown-model override. */
+  reasoning: boolean | null
   /** The wire protocol — drives the test + how the adapter is configured. */
   wireShape: WireShape
   wireApi: 'chat' | 'responses'
@@ -101,7 +104,7 @@ const EMPTY_FORM: FormState = {
   apiKey: '',
   model: '',
   contextWindow: DEFAULT_CONTEXT_WINDOW,
-  reasoning: false,
+  reasoning: null,
   wireShape: 'anthropic',
   wireApi: 'responses',
   authMode: 'x-api-key',
@@ -119,7 +122,7 @@ export function configToForm(cfg: AgentConfig | null, tab: Tab): FormState {
     apiKey: cfg.apiKey ?? '',
     model: cfg.model ?? '',
     contextWindow: normalizeContextWindow(cfg.contextWindow),
-    reasoning: cfg.reasoning === true,
+    reasoning: typeof cfg.reasoning === 'boolean' ? cfg.reasoning : null,
     wireShape: cfg.wireShape ?? DEFAULT_WIRE_BY_TAB[tab],
     wireApi: 'responses',
     authMode: cfg.authMode === 'bearer' ? 'bearer' : 'x-api-key',
@@ -137,7 +140,7 @@ export function formToConfig(form: FormState, agent: AgentId): AgentConfig {
     return {
       ...cfg,
       contextWindow: form.contextWindow,
-      ...(agent === 'pi' ? { reasoning: form.reasoning } : {}),
+      ...(typeof form.reasoning === 'boolean' ? { reasoning: form.reasoning } : {}),
       ...(form.wireShape === 'anthropic' ? { authMode: form.authMode } : {}),
     }
   }
@@ -234,17 +237,31 @@ export function WorkspaceAIConfigModal({ wsId, onClose, initialAgent = 'claude',
 
   const form = { claude: claudeForm, codex: codexForm, opencode: opencodeForm, pi: piForm }[tab]
   const setForm = { claude: setClaudeForm, codex: setCodexForm, opencode: setOpencodeForm, pi: setPiForm }[tab]
+  const formCredentialVendor = useMemo(() => {
+    const selected = credentials.find((credential) => credential.slug === pickedCredential)
+    const matchedByKey = credentials.find((credential) => (
+      !!credential.apiKey && credential.apiKey === form.apiKey.trim()
+    ))
+    return selected?.vendor ?? matchedByKey?.vendor ?? null
+  }, [credentials, form.apiKey, pickedCredential])
   // Model-id suggestions for the current field: infer the provider vendor from
-  // the entered baseUrl (api.z.ai → glm, …) with the tab as fallback, then pull
-  // that vendor's enumerated models. Empty for custom/local endpoints → the
-  // combobox is just a free-text input. This is vendor-axis, not agent-axis, so
-  // it works when any tab is pointed at any gateway.
+  // the matched vault credential first, then its entered baseUrl (api.z.ai →
+  // glm, …), with the tab as fallback. Official endpoints may intentionally be
+  // empty, so key identity is the only reliable vendor signal for opencode/Pi.
   const modelSuggestions = useMemo(() => {
-    const vendor = baseUrlToVendor(form.baseUrl, TAB_FALLBACK_VENDOR[tab])
+    const vendor = formCredentialVendor
+      ?? baseUrlToVendor(form.baseUrl, TAB_FALLBACK_VENDOR[tab])
     if (!vendor) return []
     const p = vendorPreset(vendor, presets)
     return p ? presetModels(p) : []
-  }, [form.baseUrl, tab, presets])
+  }, [form.baseUrl, formCredentialVendor, tab, presets])
+  const selectedModelSemantics = useMemo(() => {
+    const vendor = formCredentialVendor
+      ?? baseUrlToVendor(form.baseUrl, TAB_FALLBACK_VENDOR[tab])
+    if (!vendor) return null
+    return presetModel(vendorPreset(vendor, presets), form.model)?.semantics ?? null
+  }, [form.baseUrl, form.model, formCredentialVendor, tab, presets])
+  const semanticsSummary = describeModelSemantics(selectedModelSemantics)
   const gate = { claude: claudeGate, codex: codexGate, opencode: opencodeGate, pi: piGate }[tab]
   const key = testKey(form)
   const testing = gate.testing
@@ -261,7 +278,7 @@ export function WorkspaceAIConfigModal({ wsId, onClose, initialAgent = 'claude',
       savedForm.model !== form.model ||
       savedForm.wireShape !== form.wireShape ||
       ((tab === 'opencode' || tab === 'pi') && savedForm.contextWindow !== form.contextWindow) ||
-      (tab === 'pi' && savedForm.reasoning !== form.reasoning) ||
+      ((tab === 'opencode' || tab === 'pi') && savedForm.reasoning !== form.reasoning) ||
       (form.wireShape === 'anthropic' && savedForm.authMode !== form.authMode)
     )
   }, [bundle, form, tab])
@@ -288,6 +305,7 @@ export function WorkspaceAIConfigModal({ wsId, onClose, initialAgent = 'claude',
       baseUrl: picked.baseUrl,
       apiKey: cred.apiKey ?? '',
       model: defaultModel,
+      reasoning: null,
       wireShape: picked.shape,
       authMode: anthropicAuthModeForBaseUrl(picked.baseUrl),
     })
@@ -709,28 +727,11 @@ export function WorkspaceAIConfigModal({ wsId, onClose, initialAgent = 'claude',
             </div>
           )}
 
-          {tab === 'pi' && (
-            <label className="flex items-start gap-2.5 rounded-md border border-border bg-secondary/50 px-3 py-2.5">
-              <input
-                type="checkbox"
-                aria-label="Pi model supports reasoning"
-                checked={form.reasoning}
-                onChange={(e) => setForm({ ...form, reasoning: e.target.checked })}
-                className="mt-0.5"
-              />
-              <span className="text-[12px] leading-relaxed text-muted-foreground">
-                <strong className="text-foreground">Model supports reasoning.</strong>{' '}
-                Enables Pi's native thinking controls for this custom model. Leave this off for
-                models that do not expose reasoning tokens.
-              </span>
-            </label>
-          )}
-
           <div>
             <label className="block text-xs font-medium text-muted-foreground mb-1">Base URL</label>
             <input
               value={form.baseUrl}
-              onChange={(e) => setForm({ ...form, baseUrl: e.target.value })}
+              onChange={(e) => setForm({ ...form, baseUrl: e.target.value, reasoning: null })}
               placeholder={
                 form.wireShape === 'google-generative-ai'
                   ? 'https://generativelanguage.googleapis.com/v1beta'
@@ -797,11 +798,44 @@ export function WorkspaceAIConfigModal({ wsId, onClose, initialAgent = 'claude',
             <ModelCombobox
               value={form.model}
               suggestions={modelSuggestions}
-              onChange={(v) => setForm({ ...form, model: v })}
+              onChange={(v) => setForm({ ...form, model: v, reasoning: v === form.model ? form.reasoning : null })}
               placeholder={tab === 'claude' ? 'claude-opus-4-8' : tab === 'opencode' || tab === 'pi' ? 'deepseek-chat' : 'gpt-5.5'}
             />
             {modelSuggestions.length > 0 && (
               <p className="text-[11px] text-muted-foreground/70 mt-1">Suggestions from the matched provider — or type any model id.</p>
+            )}
+
+            {semanticsSummary && (
+              <div className="mt-2 rounded-md border border-primary/20 bg-primary/5 px-3 py-2 text-[11px] leading-relaxed text-muted-foreground">
+                <strong className="text-foreground">Registered automatically:</strong>{' '}
+                {semanticsSummary}. Runtime effort remains under {TAB_LABEL[tab]}'s native default unless you change it there.
+              </div>
+            )}
+
+            {(tab === 'opencode' || tab === 'pi') && !selectedModelSemantics?.reasoning && (
+              <details className="mt-2 rounded-md border border-border bg-secondary/40 px-3 py-2">
+                <summary className="cursor-pointer text-[11px] font-medium text-muted-foreground">
+                  Advanced — unknown model reasoning
+                </summary>
+                <div className="mt-2 space-y-1.5">
+                  <select
+                    aria-label={`${TAB_LABEL[tab]} unknown model reasoning override`}
+                    className={inputClass}
+                    value={form.reasoning === null ? 'auto' : form.reasoning ? 'enabled' : 'disabled'}
+                    onChange={(event) => setForm({
+                      ...form,
+                      reasoning: event.target.value === 'auto' ? null : event.target.value === 'enabled',
+                    })}
+                  >
+                    <option value="auto">Use runtime default</option>
+                    <option value="enabled">Model supports reasoning</option>
+                    <option value="disabled">Model has no reasoning mode</option>
+                  </select>
+                  <p className="text-[10.5px] leading-snug text-muted-foreground/80">
+                    Only use this for a free-typed model that is not in Alice's registry. The override is cleared when the model or provider changes.
+                  </p>
+                </div>
+              </details>
             )}
 
           </div>

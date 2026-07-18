@@ -58,10 +58,12 @@ export function copyReadme(outDir, templateRoot = process.env.AQ_TEMPLATE_ROOT) 
 
 const DEFAULT_EXCLUDES = [
   '.claude/settings.local.json',
+  '.claude/openalice-provider.json',
   '.codex/auth.json',
   '.codex/env.json',
   '.codex/config.toml',
   'opencode.json',
+  '.opencode/openalice-provider.json',
   '.pi/settings.json',
   '.pi/openalice-provider.json',
   // Pre-#662 compatibility: never commit an old redirected Pi agent home

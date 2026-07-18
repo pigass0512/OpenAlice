@@ -1,14 +1,21 @@
-import { rm } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
 
 import type { CliAdapter, SpawnContext, WorkspaceAiCred } from '../cli-adapter.js';
-import { readWorkspaceFile, writeWorkspaceFile } from '../file-service.js';
+import { readWorkspaceFile } from '../file-service.js';
 import type { HeadlessOutputEvent } from '../headless-output.js';
+import { resetOwnedJsonConfig, writeOwnedJsonConfig } from './owned-json-config.js';
 
 const SESSION_FILE_RE = /^([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\.jsonl$/i;
 
 const CLAUDE_SETTINGS_PATH = '.claude/settings.local.json';
+const CLAUDE_BINDING_STATE_PATH = '.claude/openalice-provider.json';
+const CLAUDE_OWNED_PATHS = [
+  ['env', 'ANTHROPIC_BASE_URL'],
+  ['env', 'ANTHROPIC_API_KEY'],
+  ['env', 'ANTHROPIC_AUTH_TOKEN'],
+  ['model'],
+] as const;
 
 /**
  * Claude Code parks project-scoped `.mcp.json` servers at "⏸ Pending
@@ -16,8 +23,8 @@ const CLAUDE_SETTINGS_PATH = '.claude/settings.local.json';
  * approves them — and every workspace dir is a fresh project key, so an
  * interactive session would re-prompt on every new workspace. Inject the
  * auto-trust setting at spawn instead of writing it into
- * `.claude/settings.local.json`, whose lifecycle `writeAiConfig` owns (the
- * file is deleted wholesale on AI-config reset). Headless `-p` connects to
+ * `.claude/settings.local.json`; `writeAiConfig` owns only its provider/env
+ * nodes and preserves unrelated project settings. Headless `-p` connects to
  * project servers without approval today (verified on 2.1.170), but gets the
  * same flag so automation doesn't silently lose MCP if a future version
  * closes that gap.
@@ -211,28 +218,39 @@ export const claudeAdapter: CliAdapter = {
   async writeAiConfig(cwd: string, cred: WorkspaceAiCred): Promise<void> {
     const hasAny = cred.baseUrl || cred.apiKey || cred.model;
     if (!hasAny) {
-      // Reset: delete the settings file so claude falls back to its global
-      // OAuth / settings. We don't leave an empty `{}` behind — workspace
-      // files exist only when there's an actual override.
-      const filePath = join(cwd, CLAUDE_SETTINGS_PATH);
-      await rm(filePath, { force: true });
+      await resetOwnedJsonConfig({
+        cwd,
+        configPath: CLAUDE_SETTINGS_PATH,
+        statePath: CLAUDE_BINDING_STATE_PATH,
+        label: 'Claude project settings',
+        legacyOwnedPaths: CLAUDE_OWNED_PATHS,
+      });
       return;
     }
-    const out: Record<string, unknown> = {};
-    const env: Record<string, string> = {};
-    if (cred.baseUrl) env['ANTHROPIC_BASE_URL'] = cred.baseUrl;
-    // Write the key into exactly one env var. Bearer-mode gateways (MiniMax
-    // international, proxy front-ends) read ANTHROPIC_AUTH_TOKEN → the CLI sends
-    // `Authorization: Bearer`. Default x-api-key mode uses ANTHROPIC_API_KEY.
-    // Never write both: Claude Code warns on dual-set, and the two headers
-    // together can be rejected as ambiguous auth.
-    if (cred.apiKey) {
-      if (cred.authMode === 'bearer') env['ANTHROPIC_AUTH_TOKEN'] = cred.apiKey;
-      else env['ANTHROPIC_API_KEY'] = cred.apiKey;
-    }
-    if (Object.keys(env).length > 0) out['env'] = env;
-    if (cred.model) out['model'] = cred.model;
-    await writeWorkspaceFile(cwd, CLAUDE_SETTINGS_PATH, JSON.stringify(out, null, 2) + '\n');
+    // Write the key into exactly one env var. Bearer-mode gateways read
+    // ANTHROPIC_AUTH_TOKEN; x-api-key mode reads ANTHROPIC_API_KEY. These four
+    // paths are the complete OpenAlice ownership boundary — permissions and
+    // every unknown project setting remain untouched and reset reversibly.
+    await writeOwnedJsonConfig({
+      cwd,
+      configPath: CLAUDE_SETTINGS_PATH,
+      statePath: CLAUDE_BINDING_STATE_PATH,
+      label: 'Claude project settings',
+      entries: [
+        { path: ['env', 'ANTHROPIC_BASE_URL'], present: !!cred.baseUrl, value: cred.baseUrl },
+        {
+          path: ['env', 'ANTHROPIC_API_KEY'],
+          present: !!cred.apiKey && cred.authMode !== 'bearer',
+          value: cred.apiKey,
+        },
+        {
+          path: ['env', 'ANTHROPIC_AUTH_TOKEN'],
+          present: !!cred.apiKey && cred.authMode === 'bearer',
+          value: cred.apiKey,
+        },
+        { path: ['model'], present: !!cred.model, value: cred.model },
+      ],
+    });
   },
 
   async readAiConfig(cwd: string): Promise<WorkspaceAiCred | null> {

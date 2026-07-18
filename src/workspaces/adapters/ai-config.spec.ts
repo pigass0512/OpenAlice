@@ -8,7 +8,7 @@
 import { existsSync } from 'node:fs';
 import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { basename, dirname, join } from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
@@ -78,6 +78,59 @@ describe('claudeAdapter AI-config', () => {
     await claudeAdapter.writeAiConfig!(dir, { model: 'm' });
     await claudeAdapter.writeAiConfig!(dir, {});
     expect(existsSync(join(dir, '.claude/settings.local.json'))).toBe(false);
+  });
+
+  it('preserves unrelated Claude settings and restores prior provider nodes on reset', async () => {
+    await mkdir(join(dir, '.claude'), { recursive: true });
+    await writeFile(join(dir, '.claude/settings.local.json'), JSON.stringify({
+      permissions: { allow: ['Bash(git:*)'] },
+      env: { USER_SETTING: 'keep', ANTHROPIC_BASE_URL: 'https://before.test' },
+      model: 'before-model',
+    }, null, 2));
+
+    await claudeAdapter.writeAiConfig!(dir, {
+      baseUrl: 'https://after.test', apiKey: 'after-key', model: 'after-model', authMode: 'bearer',
+    });
+    expect(JSON.parse(await read('.claude/settings.local.json'))).toMatchObject({
+      permissions: { allow: ['Bash(git:*)'] },
+      env: {
+        USER_SETTING: 'keep',
+        ANTHROPIC_BASE_URL: 'https://after.test',
+        ANTHROPIC_AUTH_TOKEN: 'after-key',
+      },
+      model: 'after-model',
+    });
+
+    await claudeAdapter.writeAiConfig!(dir, {});
+    expect(JSON.parse(await read('.claude/settings.local.json'))).toEqual({
+      permissions: { allow: ['Bash(git:*)'] },
+      env: { USER_SETTING: 'keep', ANTHROPIC_BASE_URL: 'https://before.test' },
+      model: 'before-model',
+    });
+    expect(existsSync(join(dir, '.claude/openalice-provider.json'))).toBe(false);
+  });
+
+  it('does not undo a user edit made after Claude provider injection', async () => {
+    await claudeAdapter.writeAiConfig!(dir, { model: 'injected-model' });
+    const settings = JSON.parse(await read('.claude/settings.local.json'));
+    settings.model = 'user-edited-model';
+    settings.permissions = { deny: ['Read(.env)'] };
+    await writeFile(join(dir, '.claude/settings.local.json'), JSON.stringify(settings, null, 2));
+
+    await claudeAdapter.writeAiConfig!(dir, {});
+    expect(JSON.parse(await read('.claude/settings.local.json'))).toEqual({
+      model: 'user-edited-model',
+      permissions: { deny: ['Read(.env)'] },
+    });
+  });
+
+  it('does not recreate Claude config that the user deleted after injection', async () => {
+    await claudeAdapter.writeAiConfig!(dir, { model: 'injected-model' });
+    await rm(join(dir, '.claude/settings.local.json'));
+
+    await claudeAdapter.writeAiConfig!(dir, {});
+    expect(existsSync(join(dir, '.claude/settings.local.json'))).toBe(false);
+    expect(existsSync(join(dir, '.claude/openalice-provider.json'))).toBe(false);
   });
 
   it('round-trips through readAiConfig', async () => {
@@ -265,6 +318,18 @@ describe('opencodeAdapter AI-config', () => {
     });
   });
 
+  it.each([true, false])('round-trips opencode reasoning=%s', async (reasoning) => {
+    await opencodeAdapter.writeAiConfig!(dir, {
+      baseUrl: 'https://cn.test/v1',
+      model: 'reasoning-model',
+      contextWindow: 256_000,
+      reasoning,
+    });
+    expect(JSON.parse(await read('opencode.json')).provider.workspace.models['reasoning-model'])
+      .toMatchObject({ reasoning });
+    expect(await opencodeAdapter.readAiConfig!(dir)).toMatchObject({ reasoning });
+  });
+
   it('honors wireShape — Anthropic, Google, and OpenAI Responses use their native SDKs', async () => {
     await opencodeAdapter.writeAiConfig!(dir, { baseUrl: 'https://x/anthropic', apiKey: 'k', model: 'glm-5.1', wireShape: 'anthropic' });
     expect(JSON.parse(await read('opencode.json')).provider.workspace.npm).toBe('@ai-sdk/anthropic');
@@ -299,6 +364,38 @@ describe('opencodeAdapter AI-config', () => {
     await opencodeAdapter.writeAiConfig!(dir, { baseUrl: 'u', model: 'm' });
     await opencodeAdapter.writeAiConfig!(dir, {});
     expect(existsSync(join(dir, 'opencode.json'))).toBe(false);
+  });
+
+  it('preserves unrelated opencode config and restores the previous provider/model on reset', async () => {
+    await writeFile(join(dir, 'opencode.json'), JSON.stringify({
+      $schema: 'https://example.test/custom-schema.json',
+      theme: 'system',
+      provider: {
+        other: { npm: '@ai-sdk/other' },
+        workspace: { npm: '@ai-sdk/legacy', name: 'User workspace provider' },
+      },
+      model: 'other/old-model',
+    }, null, 2));
+
+    await opencodeAdapter.writeAiConfig!(dir, {
+      baseUrl: 'https://provider.test/v1', apiKey: 'key', model: 'new-model', reasoning: true,
+    });
+    const injected = JSON.parse(await read('opencode.json'));
+    expect(injected.theme).toBe('system');
+    expect(injected.provider.other).toEqual({ npm: '@ai-sdk/other' });
+    expect(injected.provider.workspace.models['new-model'].reasoning).toBe(true);
+
+    await opencodeAdapter.writeAiConfig!(dir, {});
+    expect(JSON.parse(await read('opencode.json'))).toEqual({
+      $schema: 'https://example.test/custom-schema.json',
+      theme: 'system',
+      provider: {
+        other: { npm: '@ai-sdk/other' },
+        workspace: { npm: '@ai-sdk/legacy', name: 'User workspace provider' },
+      },
+      model: 'other/old-model',
+    });
+    expect(existsSync(join(dir, '.opencode/openalice-provider.json'))).toBe(false);
   });
 
   it('round-trips through readAiConfig (strips the provider/ prefix off model)', async () => {
@@ -583,7 +680,7 @@ describe('piAdapter AI-config', () => {
       baseUrl: 'https://cn.test/v1', apiKey: 'sk-p', model: 'deepseek-chat',
     });
     expect(await readWorkspaceProvider()).toEqual({
-      name: 'OpenAlice workspace provider ('.concat(dir.split('/').at(-1)!, ')'),
+      name: `OpenAlice workspace provider (${basename(dir)})`,
       api: 'openai-completions',
       baseUrl: 'https://cn.test/v1',
       apiKey: 'sk-p',
@@ -728,6 +825,22 @@ describe('piAdapter AI-config', () => {
     expect(await readGlobalModels()).toEqual({
       providers: { user: { name: 'User provider', api: 'openai-completions' } },
       customField: true,
+    });
+    expect(existsSync(join(dir, '.pi/openalice-provider.json'))).toBe(false);
+  });
+
+  it('Pi reset leaves project selections edited after injection in place', async () => {
+    await piAdapter.writeAiConfig!(dir, { baseUrl: 'u', model: 'injected-model' });
+    const settingsPath = join(dir, '.pi/settings.json');
+    const settings = JSON.parse(await read('.pi/settings.json'));
+    settings.defaultProvider = 'user-provider';
+    settings.defaultModel = 'user-model';
+    await writeFile(settingsPath, JSON.stringify(settings));
+
+    await piAdapter.writeAiConfig!(dir, {});
+    expect(JSON.parse(await read('.pi/settings.json'))).toEqual({
+      defaultProvider: 'user-provider',
+      defaultModel: 'user-model',
     });
     expect(existsSync(join(dir, '.pi/openalice-provider.json'))).toBe(false);
   });

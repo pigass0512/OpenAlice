@@ -4,7 +4,8 @@ This guide owns the packaged-desktop runtime contract for Workspace agents.
 Read it before changing desktop packaging, agent discovery, Pi launch behavior,
 the Windows shell/toolchain, or the `OPENALICE_MANAGED_*` environment keys.
 
-Related guides: [[docs/project-structure.md]] and
+Related guides: [[docs/project-structure.md]],
+[[docs/model-semantics-and-runtime-injection.md]], and
 [[docs/development-workflow.md]].
 
 ## Product Contract
@@ -80,6 +81,14 @@ context limit. The context default is 256K so users do not cross common
 higher-price tiers implicitly. Changing these settings never rewrites an
 existing Workspace; that Workspace's settings modal remains the explicit
 override surface.
+
+Credential access and model semantics are separate inputs. Known model ids
+resolve reasoning behavior and advertised limits from the offline registry;
+the injector caps the selected context policy at the model maximum and leaves
+effort to the native runtime. Only unknown/free-typed models expose an advanced
+reasoning override, and creation defaults bind that assertion to the exact
+model id so it cannot leak across a later model change. Follow
+[[docs/model-semantics-and-runtime-injection.md]] for the full contract.
 
 Quick Chat must summarize the launch configuration behind its credential pill:
 the effective model ID and context limit are visible before Send. For an
@@ -343,6 +352,12 @@ Pi's provider definition lives in its normal user `models.json`; the Workspace
 stores only provider/model selection and OpenAlice rollback metadata under
 `.pi/`. Do not restore a duplicate `.pi/skills/` copy: current Pi discovers the
 shared `.agents/skills/` tree from the Workspace working directory.
+
+Provider injection into shared native JSON config is node-owned, not
+file-owned. Claude Code's `.claude/settings.local.json` and opencode's
+`opencode.json` preserve unknown/user keys and use their adjacent OpenAlice
+rollback sidecars for conflict-aware reset. Keep all native provider config and
+rollback paths in `_common.mjs`'s local git excludes.
 
 ## Packaging Invariants
 

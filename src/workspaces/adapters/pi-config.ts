@@ -73,6 +73,12 @@ function applySavedSetting(settings: Record<string, unknown>, key: string, saved
   else delete settings[key];
 }
 
+function sameSavedSetting(left: SavedSetting, right: SavedSetting): boolean {
+  if (left.present !== right.present) return false;
+  if (!left.present) return true;
+  return JSON.stringify(left.value) === JSON.stringify(right.value);
+}
+
 function positiveNumber(value: number | null | undefined): number | null {
   return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : null;
 }
@@ -300,9 +306,18 @@ async function resetProjectBinding(cwd: string, agentDir: string): Promise<void>
   const providerId = state?.providerId ?? piWorkspaceProviderId(cwd);
   const settings = await readProjectSettings(cwd);
   if (state) {
-    applySavedSetting(settings, 'defaultProvider', state.previous.defaultProvider);
-    applySavedSetting(settings, 'defaultModel', state.previous.defaultModel);
-    if (state.injected.shellPath.present) applySavedSetting(settings, 'shellPath', state.previous.shellPath);
+    if (sameSavedSetting(snapshotSetting(settings, 'defaultProvider'), state.injected.defaultProvider)) {
+      applySavedSetting(settings, 'defaultProvider', state.previous.defaultProvider);
+    }
+    if (sameSavedSetting(snapshotSetting(settings, 'defaultModel'), state.injected.defaultModel)) {
+      applySavedSetting(settings, 'defaultModel', state.previous.defaultModel);
+    }
+    if (
+      state.injected.shellPath.present &&
+      sameSavedSetting(snapshotSetting(settings, 'shellPath'), state.injected.shellPath)
+    ) {
+      applySavedSetting(settings, 'shellPath', state.previous.shellPath);
+    }
   } else if (settings['defaultProvider'] === providerId) {
     delete settings['defaultProvider'];
     delete settings['defaultModel'];

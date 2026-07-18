@@ -265,11 +265,11 @@ describe('GET/PUT /issue-default-agent', () => {
 })
 
 describe('PUT /workspace-credential-defaults', () => {
-  it('replaces the map, keeps optional model and wire, and persists the context default', async () => {
+  it('replaces the map, keeps optional model and wire, and derives known reasoning', async () => {
     const routes = createConfigRoutes()
     const { status, body } = await req(routes, 'PUT', '/workspace-credential-defaults', {
       defaults: {
-        opencode: { credentialSlug: 'openai-1', model: 'gpt-5.5', wireShape: 'openai-responses' },
+        opencode: { credentialSlug: 'openai-1', model: 'gpt-5.5', wireShape: 'openai-responses', reasoning: false },
         pi: { credentialSlug: 'anthropic-1', reasoning: true },
       },
       contextWindow: 512_000,
@@ -277,11 +277,30 @@ describe('PUT /workspace-credential-defaults', () => {
     expect(status).toBe(200)
     expect(body!.defaults).toEqual({
       opencode: { credentialSlug: 'openai-1', model: 'gpt-5.5', wireShape: 'openai-responses' },
-      pi: { credentialSlug: 'anthropic-1', reasoning: true },
+      pi: { credentialSlug: 'anthropic-1' },
     })
     expect(defaultsStore).toEqual(body!.defaults)
     expect(body!.contextWindow).toBe(512_000)
     expect(contextWindowStore).toBe(512_000)
+  })
+
+  it('binds an unknown-model reasoning override to the selected model id', async () => {
+    const routes = createConfigRoutes()
+    const { status, body } = await req(routes, 'PUT', '/workspace-credential-defaults', {
+      defaults: {
+        opencode: { credentialSlug: 'chat-1', model: 'private-model', reasoning: false },
+      },
+    })
+
+    expect(status).toBe(200)
+    expect(body!.defaults).toEqual({
+      opencode: {
+        credentialSlug: 'chat-1',
+        model: 'private-model',
+        reasoning: false,
+        reasoningModel: 'private-model',
+      },
+    })
   })
 
   it('drops an agent whose credentialSlug is empty ("don\'t seed")', async () => {

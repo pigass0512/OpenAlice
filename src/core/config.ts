@@ -184,8 +184,10 @@ export const workspaceCredentialDefaultSchema = z.object({
   model: z.string().optional(),
   /** Optional explicit protocol when a credential exposes more than one wire. */
   wireShape: credentialWireShapeEnum.optional(),
-  /** Pi only: custom-model reasoning capability. */
+  /** Unknown-model reasoning override for Pi/opencode; known models auto-resolve. */
   reasoning: z.boolean().optional(),
+  /** Model id the unknown-model override was decided for. */
+  reasoningModel: z.string().optional(),
 })
 export type WorkspaceCredentialDefault = z.infer<typeof workspaceCredentialDefaultSchema>
 

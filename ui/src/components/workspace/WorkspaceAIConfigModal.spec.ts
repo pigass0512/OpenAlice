@@ -21,9 +21,15 @@ describe('WorkspaceAIConfigModal Pi model capability mapping', () => {
     })
   })
 
-  it('does not leak the Pi-only capability into opencode config', () => {
+  it('shares an explicit unknown-model capability with opencode', () => {
     const form = configToForm(null, 'opencode')
     form.reasoning = true
-    expect(formToConfig(form, 'opencode').reasoning).toBeUndefined()
+    expect(formToConfig(form, 'opencode').reasoning).toBe(true)
+  })
+
+  it('omits unknown-model reasoning when the runtime should decide', () => {
+    const form = configToForm(null, 'pi')
+    expect(form.reasoning).toBeNull()
+    expect(formToConfig(form, 'pi').reasoning).toBeUndefined()
   })
 })

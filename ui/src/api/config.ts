@@ -102,8 +102,10 @@ export interface WorkspaceCredentialDefault {
   credentialSlug: string
   model?: string
   wireShape?: WireShape
-  /** Pi only: expose native thinking controls for this custom model. */
+  /** Unknown-model override for Pi/opencode; known models auto-resolve. */
   reasoning?: boolean
+  /** Model id the unknown-model override was decided for. */
+  reasoningModel?: string
 }
 
 export type WorkspaceContextWindow = 128_000 | 256_000 | 512_000 | 1_000_000

@@ -4,7 +4,9 @@ import {
   agentWireShapes,
   anthropicAuthModeForBaseUrl,
   baseUrlToVendor,
+  describeModelSemantics,
   pickAgentWire,
+  presetModel,
   savedCredentialModel,
 } from './presetHelpers'
 import type { Preset } from '../api'
@@ -33,6 +35,17 @@ const modelPreset: Preset = {
       },
     },
   },
+  models: [
+    { id: 'newest-first', label: 'Newest' },
+    {
+      id: 'stable-default',
+      label: 'Stable default',
+      semantics: {
+        contextWindow: 1_000_000,
+        reasoning: { mode: 'adaptive', defaultEffort: 'high', interleaved: true },
+      },
+    },
+  ],
 }
 
 describe('agent wire selection', () => {
@@ -70,5 +83,12 @@ describe('saved credential model selection', () => {
 
   it('uses the explicit catalog default instead of the first suggestion', () => {
     expect(savedCredentialModel({}, modelPreset)).toBe('stable-default')
+  })
+
+  it('resolves and describes exact rich model semantics', () => {
+    const semantics = presetModel(modelPreset, 'stable-default')?.semantics
+    expect(describeModelSemantics(semantics))
+      .toBe('Adaptive reasoning · runtime default: high · interleaved thinking · 1M context')
+    expect(presetModel(modelPreset, 'free-typed-model')).toBeNull()
   })
 })
