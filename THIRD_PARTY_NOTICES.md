@@ -1,10 +1,15 @@
 # Third-Party Notices
 
-## stablyai/orca terminal WebGL patch
+## stablyai/orca terminal patches and keyboard policy
 
 `patches/@xterm__addon-webgl@0.20.0-beta.286.patch` is adapted from
 [`stablyai/orca`](https://github.com/stablyai/orca) commit
 `1b331f282cd4da880b888f242e3545fffbba4cb5`.
+
+`patches/@xterm__xterm@6.1.0-beta.287.patch` and the Kitty keyboard / IME
+policy in `ui/src/components/workspace/terminalKeyboard.ts` are adapted from
+[`stablyai/orca`](https://github.com/stablyai/orca) commit
+`ab0f220c60739c90ecbedd327d0b4619e715570d`.
 
 MIT License
 

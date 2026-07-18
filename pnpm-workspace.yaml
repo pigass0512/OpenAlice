@@ -40,3 +40,5 @@ overrides:
 patchedDependencies:
   # Adapted from stablyai/orca@1b331f2. See THIRD_PARTY_NOTICES.md.
   '@xterm/addon-webgl@0.20.0-beta.286': patches/@xterm__addon-webgl@0.20.0-beta.286.patch
+  # Adapted from stablyai/orca@ab0f220. See THIRD_PARTY_NOTICES.md.
+  '@xterm/xterm@6.1.0-beta.287': patches/@xterm__xterm@6.1.0-beta.287.patch

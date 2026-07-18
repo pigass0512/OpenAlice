@@ -14,10 +14,13 @@ import {
 import { attachWebglRenderer } from './renderer';
 import {
   describeTerminalInput,
-  keySignature,
   TERMINAL_FONT_FAMILY,
   type KeyMap,
 } from './terminalInput';
+import {
+  installTerminalKeyboardController,
+  RESET_KITTY_KEYBOARD_PROTOCOL,
+} from './terminalKeyboard';
 import {
   useResolvedTerminalTheme,
   useTerminalThemeStore,
@@ -266,8 +269,15 @@ export function TerminalView(props: TerminalViewProps): ReactElement {
       cursorBlink: true,
       allowProposedApi: true,
       scrollback: 10_000,
-      macOptionIsMeta: true,
+      // Keep Option available to non-US layouts for composed text. Kitty
+      // reporting handles modified keys without treating Option as Meta.
+      macOptionIsMeta: false,
       convertEol: false,
+      // Advertise enhanced keyboard support so terminal apps can negotiate
+      // CSI-u key reporting (notably Shift+Enter and key release handling).
+      vtExtensions: {
+        kittyKeyboard: true,
+      },
       // OpenCode/OpenTUI requests the text-area pixel geometry (CSI 14 t)
       // before completing a redraw. xterm.js gates these reports off by
       // default because some window queries may expose host information. These
@@ -372,47 +382,24 @@ export function TerminalView(props: TerminalViewProps): ReactElement {
       }
     };
 
-    let suppressNextKeypress = false;
-    let suppressNextKeypressTimer: ReturnType<typeof setTimeout> | undefined;
-
-    const armSuppressNextKeypress = (): void => {
-      suppressNextKeypress = true;
-      if (suppressNextKeypressTimer) clearTimeout(suppressNextKeypressTimer);
-      suppressNextKeypressTimer = setTimeout(() => {
-        suppressNextKeypress = false;
-        suppressNextKeypressTimer = undefined;
-      }, 50);
-    };
-
-    const clearSuppressNextKeypress = (): void => {
-      suppressNextKeypress = false;
-      if (suppressNextKeypressTimer) clearTimeout(suppressNextKeypressTimer);
-      suppressNextKeypressTimer = undefined;
-    };
-
-    term.attachCustomKeyEventHandler((event) => {
-      if (event.type !== 'keydown') return true;
-      const signature = keySignature(event);
-      const map = keyMapRef.current;
-      if (map === undefined) return true;
-      const bytes = map[signature];
-      if (bytes === undefined) return true;
-      armSuppressNextKeypress();
-      event.preventDefault();
-      event.stopPropagation();
-      logInput(`key:${signature}`, bytes);
-      sendStdin(bytes);
-      return false;
+    const keyboardController = installTerminalKeyboardController({
+      terminalElement: term.element,
+      getKeyMap: () => keyMapRef.current,
+      hasSelection: () => term.hasSelection(),
+      sendInput: (data, source) => {
+        logInput(source, data);
+        const ws = activeWs;
+        if (ws && ws.readyState === ws.OPEN) ws.send(encoder.encode(data));
+      },
+      resetKittyProtocol: () => {
+        // A TUI can exit on Ctrl+C before restoring its negotiated renderer
+        // flags. Reset xterm's local keyboard state for the resumed shell.
+        queueMicrotask(() => {
+          if (!teardown) term.write(RESET_KITTY_KEYBOARD_PROTOCOL);
+        });
+      },
     });
-
-    const suppressMappedKeypress = (event: KeyboardEvent): void => {
-      if (!suppressNextKeypress) return;
-      clearSuppressNextKeypress();
-      event.preventDefault();
-      event.stopPropagation();
-    };
-
-    container.addEventListener('keypress', suppressMappedKeypress, true);
+    term.attachCustomKeyEventHandler(keyboardController.handle);
 
     const handleResize = (): void => {
       safeFit(fit);
@@ -585,9 +572,8 @@ export function TerminalView(props: TerminalViewProps): ReactElement {
       if (pendingWriteFrame !== undefined) cancelAnimationFrame(pendingWriteFrame);
       stdinSub.dispose();
       binarySub.dispose();
-      clearSuppressNextKeypress();
+      keyboardController.dispose();
       resizeObserver?.disconnect();
-      container.removeEventListener('keypress', suppressMappedKeypress, true);
       window.removeEventListener('resize', handleResize);
       try {
         activeWs?.close();
