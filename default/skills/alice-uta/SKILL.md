@@ -7,7 +7,6 @@ description: >
   order writes, position-close, commit, push, reject, sync, and simulator
   commands may change trading state. Use for "what's my position", "quote this
   contract", "place or cancel an order", and the trading-as-git approval flow.
-  Run the documented command lines through Bash/Shell, never as tool names.
   Discover current flags with `alice-uta <group> <verb> --help`; do not guess
   aliases.
 ---
@@ -15,10 +14,6 @@ description: >
 # Trading — `alice-uta`
 
 Accounts, portfolio, contracts, orders, and the trading-as-git approval flow.
-`alice-uta` is a **shell executable**. Invoke every command below through the
-Agent Runtime's Bash/Shell tool; never submit the whole command line as a tool
-name.
-
 Account, portfolio, contract, quote, market-clock, and history reads do not
 mutate broker state. Order writes, position closes, approval commands, and the
 simulator can mutate trading state: inspect their live help before acting, and

@@ -34,11 +34,10 @@ files, Issues, Inbox reports, tracked entities, and attributable Sessions.
 
 ## Choose the right surface
 
-OpenAlice places these executables on PATH. They are shell commands, not direct
-tool names: invoke them through the Agent Runtime's Bash/Shell tool. Their
-skills own the current manuals; read the relevant skill before the first
-domain command and use `<cli> --help` / `<cli> <group> <verb> --help` instead
-of guessing flags or positional arguments.
+OpenAlice places these CLIs on PATH. Their skills own the current manuals; read
+the relevant skill before the first domain command and use `<cli> --help` /
+`<cli> <group> <verb> --help` instead of guessing flags or positional
+arguments.
 
 | Need | Surface | Skill |
 |---|---|---|
