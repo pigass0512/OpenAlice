@@ -289,9 +289,14 @@ remain at the OpenAlice/UTA boundary.
 - `src/workspaces/spawn-env.ts` places OpenAlice's CLI shims first, followed by
   managed toolchain directories and host fallbacks. On Windows it also
   canonicalizes `Path`/`PATH` so Pi's nested shell keeps the injected entries.
+- `CliAdapter.lifecycle.prepareWorkspace` is the common, idempotent runtime
+  preparation hook. Workspace creation and every real TUI, Web, headless,
+  readiness, or probe launch use the same hook instead of inventing
+  surface-specific adapter setup.
 - `src/workspaces/adapters/pi.ts` launches the npm runtime as
-  `[managedPiNodePath, managedPiPath, ...args]` and writes the managed shell
-  path into `.pi/settings.json` during Windows Workspace bootstrap.
+  `[managedPiNodePath, managedPiPath, ...args]`; its lifecycle implementation
+  reconciles trust, legacy config, the managed Windows shell, and the native Pi
+  automatic theme pair.
 
 The packaged Electron managed npm runtime is not added to `PATH` as a fake
 `pi` binary; the Pi adapter owns its explicit launch command. The curl
@@ -317,6 +322,16 @@ Pi project trust follows the runtime boundary:
   flags. The Pi executable on `PATH`, its version, and its upgrade policy
   belong to the contributor. A curl-installed CLI Runtime has an explicit
   managed Pi path and therefore follows the pinned managed approval contract.
+
+Pi terminal appearance follows the same boundary used by Orca:
+
+- when a Workspace has no explicit Pi project theme, runtime preparation writes
+  Pi's built-in `light/dark` automatic pair to `.pi/settings.json`;
+- a Pi project theme already present in that file is user-owned and remains
+  unchanged on later launches;
+- OpenAlice supplies the terminal palette and light/dark facts through xterm,
+  OSC/DSR queries, and mode 2031. Pi remains responsible for its own TUI theme;
+  OpenAlice does not generate or inject palette-specific Pi themes.
 
 Do not add external-Pi version probing or upgrade UX to preserve flags used by
 the packaged runtime. Compatibility for the packaged app is maintained by
@@ -363,9 +378,10 @@ OpenAlice copies Workspace skills into two canonical project paths:
 - `.agents/skills/` for Codex, current Pi, and compatible shared-skill readers.
 
 Pi's provider definition lives in its normal user `models.json`; the Workspace
-stores only provider/model selection and OpenAlice rollback metadata under
-`.pi/`. Do not restore a duplicate `.pi/skills/` copy: current Pi discovers the
-shared `.agents/skills/` tree from the Workspace working directory.
+stores provider/model selection, the automatic terminal theme default, and
+OpenAlice rollback metadata under `.pi/`. Do not restore a duplicate
+`.pi/skills/` copy: current Pi discovers the shared `.agents/skills/` tree from
+the Workspace working directory.
 
 Provider injection into shared native JSON config is node-owned, not
 file-owned. Claude Code's `.claude/settings.local.json` and opencode's

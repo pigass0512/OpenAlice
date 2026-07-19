@@ -17,6 +17,7 @@ import { codexAdapter } from './codex.js';
 import { opencodeAdapter } from './opencode.js';
 import { piAdapter, syncPiProjectTrust, syncPiWindowsShellPath } from './pi.js';
 import { migrateLegacyPiAgentDir, piWorkspaceProviderId } from './pi-config.js';
+import { prepareAgentRuntimeWorkspace } from '../cli-adapter.js';
 
 let dir: string;
 
@@ -548,6 +549,35 @@ describe('piAdapter AI-config', () => {
     const models = await readGlobalModels();
     return models['providers'][piWorkspaceProviderId(dir)] as Record<string, any>;
   };
+
+  it('prepares Pi to follow the terminal light/dark mode by default', async () => {
+    await mkdir(join(dir, '.pi'), { recursive: true });
+    await writeFile(join(dir, '.pi/settings.json'), JSON.stringify({ quietStartup: true }));
+
+    await prepareAgentRuntimeWorkspace(piAdapter, {
+      wsId: 'ws-abc',
+      cwd: dir,
+      launcherRepoRoot: '/repo',
+    });
+
+    expect(JSON.parse(await read('.pi/settings.json'))).toEqual({
+      quietStartup: true,
+      theme: 'light/dark',
+    });
+  });
+
+  it('preserves an explicit Pi project theme on later lifecycle runs', async () => {
+    await mkdir(join(dir, '.pi'), { recursive: true });
+    await writeFile(join(dir, '.pi/settings.json'), JSON.stringify({ theme: 'dark' }));
+
+    await prepareAgentRuntimeWorkspace(piAdapter, {
+      wsId: 'ws-abc',
+      cwd: dir,
+      launcherRepoRoot: '/repo',
+    });
+
+    expect(JSON.parse(await read('.pi/settings.json'))).toEqual({ theme: 'dark' });
+  });
 
   it('records a new OpenAlice workspace in Pi global trust without forcing agent-dir redirection', async () => {
     const home = join(dir, 'home');

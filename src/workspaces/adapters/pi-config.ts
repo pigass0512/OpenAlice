@@ -22,6 +22,7 @@ import type { WorkspaceAiCred } from '../cli-adapter.js';
 export const PI_PROJECT_SETTINGS_PATH = '.pi/settings.json';
 export const PI_BINDING_STATE_PATH = '.pi/openalice-provider.json';
 export const LEGACY_PI_AGENT_DIR = '.pi-agent';
+export const PI_AUTOMATIC_THEME_PAIR = 'light/dark';
 
 const PI_PROVIDER_PREFIX = 'openalice-workspace-';
 const PI_PROVIDER_NAME_PREFIX = 'OpenAlice workspace provider';
@@ -223,6 +224,20 @@ async function removeGlobalProvider(agentDir: string, providerId: string): Promi
 
 async function readProjectSettings(cwd: string): Promise<Record<string, unknown>> {
   return await readJsonRecord(join(cwd, PI_PROJECT_SETTINGS_PATH), 'Pi project settings') ?? {};
+}
+
+/**
+ * Give OpenAlice-managed Pi Workspaces the same boundary Orca expects: Pi
+ * remains the owner of its TUI colors, while the terminal reports light/dark
+ * through OSC/DSR and mode 2031. A project choice wins over this default,
+ * including a choice the user later makes from Pi's own settings UI.
+ */
+export async function syncPiWorkspaceTheme(cwd: string): Promise<boolean> {
+  const settings = await readProjectSettings(cwd);
+  if (Object.prototype.hasOwnProperty.call(settings, 'theme')) return false;
+  settings['theme'] = PI_AUTOMATIC_THEME_PAIR;
+  await writeJsonAtomic(join(cwd, PI_PROJECT_SETTINGS_PATH), settings);
+  return true;
 }
 
 async function readBindingState(cwd: string): Promise<PiBindingState | null> {

@@ -30,7 +30,12 @@ import { codexAdapter } from './adapters/codex.js';
 import { opencodeAdapter } from './adapters/opencode.js';
 import { piAdapter } from './adapters/pi.js';
 import { shellAdapter } from './adapters/shell.js';
-import { AdapterRegistry, isAgentRuntime, type CliAdapter } from './cli-adapter.js';
+import {
+  AdapterRegistry,
+  isAgentRuntime,
+  prepareAgentRuntimeWorkspace,
+  type CliAdapter,
+} from './cli-adapter.js';
 import { loadConfig, type ServerConfig } from './config.js';
 import { ensureAgentCredentialReady } from './agent-credential-readiness.js';
 import { logger as launcherLogger } from './logger.js';
@@ -856,13 +861,11 @@ export async function createWorkspaceService(opts: CreateWorkspaceServiceOptions
 
   const prepareRuntimeReadinessWorkspace = async (adapter: CliAdapter): Promise<WorkspaceMeta> => {
     const workspace = await resolveRuntimeReadinessWorkspace();
-    if (adapter.bootstrap) {
-      await adapter.bootstrap({
-        wsId: workspace.id,
-        cwd: workspace.dir,
-        launcherRepoRoot: config.launcherRepoRoot,
-      });
-    }
+    await prepareAgentRuntimeWorkspace(adapter, {
+      wsId: workspace.id,
+      cwd: workspace.dir,
+      launcherRepoRoot: config.launcherRepoRoot,
+    });
     return workspace;
   };
 
@@ -1129,6 +1132,11 @@ export async function createWorkspaceService(opts: CreateWorkspaceServiceOptions
         adapter,
         logger: launcherLogger,
       });
+      await prepareAgentRuntimeWorkspace(adapter, {
+        wsId: ws.id,
+        cwd: ws.dir,
+        launcherRepoRoot: config.launcherRepoRoot,
+      });
       const { command, cwd, env, transcriptDir } = composeSpawnInputs(ws, adapter, resume);
       return await runHeadlessProbe({
         command,
@@ -1182,6 +1190,11 @@ export async function createWorkspaceService(opts: CreateWorkspaceServiceOptions
         agentId: adapter.id,
         adapter,
         logger: launcherLogger,
+      });
+      await prepareAgentRuntimeWorkspace(adapter, {
+        wsId: ws.id,
+        cwd: ws.dir,
+        launcherRepoRoot: config.launcherRepoRoot,
       });
       if (catalog.get(ws.id)?.lifecycle !== 'active') {
         throw new Error(`workspace stopped accepting work before spawn: ${ws.id}`);

@@ -27,7 +27,12 @@ import { readWorkspaceMetadata, workspaceMetadataSchema, writeWorkspaceMetadata 
 import type { SessionRecord } from '../../workspaces/session-registry.js';
 import type { WorkspaceMeta } from '../../workspaces/workspace-registry.js';
 import { HeadlessCapacityError, HeadlessResumeError, resumeFromRecord, type SessionFactoryContext, type WorkspaceService } from '../../workspaces/service.js';
-import { isAgentRuntime, type CliAdapter, type WorkspaceAiCred } from '../../workspaces/cli-adapter.js';
+import {
+  isAgentRuntime,
+  prepareAgentRuntimeWorkspace,
+  type CliAdapter,
+  type WorkspaceAiCred,
+} from '../../workspaces/cli-adapter.js';
 import { generatePetnameId } from '../../workspaces/petname-id.js';
 import { addCredential, readCredentials, readWorkspaceDefaultAgent, setCredentialLastModel, credentialWires, credentialWireShapeEnum, type Credential } from '../../core/config.js';
 import { inferCredentialVendor, resolveAnthropicAuthMode } from '../../core/credential-inference.js';
@@ -267,11 +272,13 @@ export function createWorkspaceRoutes(
       return { ok: false, status: 500, body: { error: 'agent_credential_failed', message: (err as Error).message } };
     }
     try {
-      if (adapter.bootstrap) {
-        await adapter.bootstrap({ wsId: id, cwd: meta.dir, launcherRepoRoot: svc.config.launcherRepoRoot });
-      }
+      await prepareAgentRuntimeWorkspace(adapter, {
+        wsId: id,
+        cwd: meta.dir,
+        launcherRepoRoot: svc.config.launcherRepoRoot,
+      });
     } catch (err) {
-      launcherLogger.error('adapter.bootstrap_failed', { id, agent: adapter.id, err });
+      launcherLogger.error('adapter.prepare_workspace_failed', { id, agent: adapter.id, err });
       return { ok: false, status: 500, body: { error: 'bootstrap_failed', message: (err as Error).message } };
     }
     await svc.sessionRegistry.ensureLoaded(id);
@@ -1388,15 +1395,13 @@ export function createWorkspaceRoutes(
         resumeHintInRecord: record.resumeHint ?? null,
       });
       try {
-        if (adapter.bootstrap) {
-          await adapter.bootstrap({
-            wsId: id,
-            cwd: meta.dir,
-            launcherRepoRoot: svc.config.launcherRepoRoot,
-          });
-        }
+        await prepareAgentRuntimeWorkspace(adapter, {
+          wsId: id,
+          cwd: meta.dir,
+          launcherRepoRoot: svc.config.launcherRepoRoot,
+        });
       } catch (err) {
-        launcherLogger.error('adapter.bootstrap_failed_on_resume', { id, agent: adapter.id, err });
+        launcherLogger.error('adapter.prepare_workspace_failed_on_resume', { id, agent: adapter.id, err });
         return c.json({ error: 'bootstrap_failed', message: (err as Error).message }, 500);
       }
       let initialReplayBytes: Buffer | null = null;
@@ -1502,9 +1507,11 @@ export function createWorkspaceRoutes(
     if (!adapter) return c.json({ error: 'unknown_agent' }, 500);
     try {
       await ensureAgentCredentialReady({ meta, agentId: 'pi', adapter, logger: launcherLogger });
-      if (adapter.bootstrap) {
-        await adapter.bootstrap({ wsId: id, cwd: meta.dir, launcherRepoRoot: svc.config.launcherRepoRoot });
-      }
+      await prepareAgentRuntimeWorkspace(adapter, {
+        wsId: id,
+        cwd: meta.dir,
+        launcherRepoRoot: svc.config.launcherRepoRoot,
+      });
       if (svc.pool.get(token)) svc.pool.disposeToken(token, 'switch to WebPi');
       const snapshot = await svc.startWebPiSession(
         meta,
@@ -1831,14 +1838,6 @@ export function createWorkspaceRoutes(
     const adapter = svc.resolveAdapter(meta, effectiveAgentId);
     if (!adapter.capabilities.headless || !adapter.composeHeadlessCommand) {
       return c.json({ error: 'no_headless', message: `adapter "${adapter.id}" has no headless mode` }, 400);
-    }
-    // Same one-time bootstrap as a real spawn (trust/MCP wiring), idempotent.
-    try {
-      if (adapter.bootstrap) {
-        await adapter.bootstrap({ wsId: id, cwd: meta.dir, launcherRepoRoot: svc.config.launcherRepoRoot });
-      }
-    } catch (err) {
-      launcherLogger.error('headless.bootstrap_failed', { id, agent: adapter.id, err });
     }
     launcherLogger.info('workspace.headless_started', {
       id,

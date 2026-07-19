@@ -124,8 +124,7 @@ function projectKey(workspaceDir: string): string {
  * is the verbatim move of `index.ts:composeCommand` from before refactor).
  *
  * MCP wiring for claude is handled by the template's `.mcp.json` (the launcher
- * still does the placeholder-substitution at spawn-env-build time). v2.M4
- * generalizes that into `bootstrap()` here.
+ * still does the placeholder-substitution at spawn-env-build time).
  */
 export const claudeAdapter: CliAdapter = {
   id: 'claude',

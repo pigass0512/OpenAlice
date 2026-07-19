@@ -4,7 +4,7 @@ import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { createInterface } from 'node:readline';
 
-import type { BootstrapContext, CliAdapter, OnDiskSession, SpawnContext, WorkspaceAiCred } from '../cli-adapter.js';
+import type { CliAdapter, OnDiskSession, SpawnContext, WorkspaceAiCred } from '../cli-adapter.js';
 import { readWorkspaceFile, writeWorkspaceFile } from '../file-service.js';
 import type { HeadlessOutputEvent } from '../headless-output.js';
 
@@ -34,9 +34,9 @@ const CODEX_INTERACTIVE_PERMISSION_ARGS = [
  *   this workspace. v1 punts on this (`transcriptDiscovery: 'none'`); the
  *   `codex resume` picker is cwd-aware and handles the user-facing case.
  * - Trust model: codex prompts on first run for any cwd not in
- *   `~/.codex/config.toml` `[projects."<abs>"] trust_level`. `bootstrap()`
- *   pre-writes that entry so the launcher's spawn doesn't stall on the
- *   prompt.
+ *   `~/.codex/config.toml` `[projects."<abs>"] trust_level`. The shared
+ *   runtime lifecycle pre-writes that entry so the launcher's spawn doesn't
+ *   stall on the prompt.
  *
  * AI provider model — two modes, mutually exclusive:
  *
@@ -382,8 +382,10 @@ export const codexAdapter: CliAdapter = {
     return result;
   },
 
-  async bootstrap(ctx: BootstrapContext): Promise<void> {
-    await ensureTrustedProject(ctx.cwd);
+  lifecycle: {
+    async prepareWorkspace(ctx): Promise<void> {
+      await ensureTrustedProject(ctx.cwd);
+    },
   },
 
   /**

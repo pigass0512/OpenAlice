@@ -12,6 +12,7 @@ import {
   PI_BINDING_STATE_PATH,
   readPiWorkspaceConfig,
   resolvePiAgentDir,
+  syncPiWorkspaceTheme,
   syncPiWorkspaceShellPath,
   writePiWorkspaceConfig,
 } from './pi-config.js';
@@ -188,22 +189,25 @@ export const piAdapter: CliAdapter = {
     headless: true,
   },
 
-  // Reconcile the derived Pi cache on every Windows launch so workspaces made
-  // before the global shell setting existed pick it up without requiring a
-  // credential rewrite. The helper returns before I/O on every other OS.
-  async bootstrap({ cwd }): Promise<void> {
-    await migrateLegacyPiAgentDir(cwd);
-    await syncPiWindowsShellPath(cwd);
-    await syncPiProjectTrust(cwd);
+  lifecycle: {
+    // Reconcile launcher-managed Pi project defaults before every surface
+    // starts. Each operation is idempotent and preserves explicit Pi-owned
+    // project choices.
+    async prepareWorkspace({ cwd }): Promise<void> {
+      await migrateLegacyPiAgentDir(cwd);
+      await syncPiWorkspaceTheme(cwd);
+      await syncPiWindowsShellPath(cwd);
+      await syncPiProjectTrust(cwd);
+    },
   },
 
   composeCommand(_base: readonly string[], ctx: SpawnContext): readonly string[] {
     // Tools come from the CLI-injection path (alice on PATH + shared
     // .agents/skills), not flags — so the command head is just the binary + a
     // resume flag (if any).
-    // `bootstrap()` records trust for this OpenAlice-managed Workspace before
-    // every launch. Keeping argv free of `--approve` preserves compatibility
-    // with external Pi 0.78.x runtimes that predate the flag.
+    // The runtime lifecycle records trust for this OpenAlice-managed Workspace
+    // before every launch. Keeping argv free of `--approve` preserves
+    // compatibility with external Pi 0.78.x runtimes that predate the flag.
     const head = [...piCommandHead(ctx.env)];
     // Quick-chat seed: `pi [--session-id <id>] <messages…>` opens the
     // interactive TUI seeded with that first message. UNLIKE the other adapters,

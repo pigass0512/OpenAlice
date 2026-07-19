@@ -174,8 +174,11 @@ Workspace tools are exposed as CLI shims on `PATH`. The `alice*` and
 `traderhub` skills teach the native agents how to call those shims. Shared
 project skills are copied to `.agents/skills/` and Claude-specific discovery to
 `.claude/skills/`. Pi keeps providers in its normal user agent directory and
-selects a Workspace provider through `.pi/settings.json`; OpenAlice never
-redirects Pi away from its native global packages, settings, auth, or sessions.
+selects a Workspace provider through `.pi/settings.json`; the shared runtime
+lifecycle also gives Workspaces without an explicit Pi theme the native
+`light/dark` automatic pair. OpenAlice never redirects Pi away from its native
+global packages, settings, auth, or sessions and never replaces an explicit Pi
+project theme.
 Claude Code and opencode keep reversible OpenAlice ownership metadata in
 `.claude/openalice-provider.json` and `.opencode/openalice-provider.json` so
 provider reset preserves unrelated native settings. Those files are sensitive

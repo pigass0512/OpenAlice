@@ -4,8 +4,8 @@
  * The pool, watcher, and discovery layers consult an adapter to:
  *   1. Translate a spawn intent (`resume`?) into the CLI's native command flags.
  *   2. Decide whether/how to discover on-disk transcripts for this CLI.
- *   3. Provide CLI-specific env strips/sets and one-time bootstrap (writing
- *      config files, registering MCP servers in the CLI's native format, etc.).
+ *   3. Provide CLI-specific env strips/sets and idempotent lifecycle hooks
+ *      (writing config files, recording trust, etc.).
  *
  * In v2.M1 only `claude` is registered; the interface exists so v2.M2+ can
  * land codex/shell without touching the core PTY/protocol/UI plumbing.
@@ -60,11 +60,27 @@ export interface SpawnContext {
   readonly approveProject?: boolean;
 }
 
-export interface BootstrapContext {
+export interface AgentRuntimeWorkspaceContext {
   readonly wsId: string;
   readonly cwd: string;
   /** Absolute path to the launcher repo, so adapters can compose tool paths. */
   readonly launcherRepoRoot: string;
+}
+
+/**
+ * Shared lifecycle surface for native agent runtimes. Hooks are invoked by the
+ * launcher rather than by individual HTTP/headless/Web adapters, so every
+ * runtime gets the same preparation boundary. Implementations must be
+ * idempotent: workspace creation and every real process launch can both call
+ * `prepareWorkspace`.
+ */
+export interface AgentRuntimeLifecycle {
+  /**
+   * Reconcile launcher-managed runtime configuration before the Workspace is
+   * used. Native/user-owned config must be merged narrowly; never replace a
+   * runtime's global settings directory.
+   */
+  prepareWorkspace?(ctx: AgentRuntimeWorkspaceContext): Promise<void>;
 }
 
 /**
@@ -175,6 +191,9 @@ export interface CliAdapter {
     readonly headless?: boolean;
   };
 
+  /** Runtime-specific hooks executed through the shared launcher lifecycle. */
+  readonly lifecycle?: AgentRuntimeLifecycle;
+
   /**
    * Inspect native first-use state without changing it. Omit when the runtime
    * has no known pre-prompt interactive gate or exposes no safe read seam.
@@ -283,15 +302,6 @@ export interface CliAdapter {
   composeEnv?(ctx: SpawnContext): Record<string, string>;
 
   /**
-   * Workspace-creation hook. The launcher calls this once for every adapter
-   * enabled on a workspace. Responsible for technical wiring (writing
-   * `.mcp.json`, adding trust entries to global config, etc.) — NOT for
-   * instruction files like CLAUDE.md / AGENTS.md (template README covers
-   * the cross-CLI guidance).
-   */
-  bootstrap?(ctx: BootstrapContext): Promise<void>;
-
-  /**
    * Read/write the workspace's per-CLI AI-provider override. The launcher
    * dispatches uniformly; each adapter renders the shared `WorkspaceAiCred`
    * into (and parses it out of) its own native config files. An empty cred
@@ -308,6 +318,16 @@ export interface CliAdapter {
 
   /** Subprocess discovery (capabilities.transcriptDiscovery === 'subprocess'). */
   listOnDisk?(cwd: string): Promise<readonly OnDiskSession[]>;
+}
+
+/** Execute the common pre-use lifecycle without coupling callers to an
+ * adapter's hook layout. This is the only launcher entry point for runtime
+ * workspace preparation. */
+export async function prepareAgentRuntimeWorkspace(
+  adapter: CliAdapter,
+  ctx: AgentRuntimeWorkspaceContext,
+): Promise<void> {
+  await adapter.lifecycle?.prepareWorkspace?.(ctx);
 }
 
 export function isAgentRuntime(adapter: CliAdapter): boolean {
