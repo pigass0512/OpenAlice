@@ -76,9 +76,6 @@ export const zhHant: Resources = {
       usedForDay: '用於日間',
       usedForNight: '用於暗夜',
       usedForBoth: '同時用於日間與暗夜',
-      showEditorTabs: '顯示編輯器分頁',
-      showEditorTabsOn: '編輯器上方顯示分頁列 —— 點擊切換，× 或中鍵關閉。',
-      showEditorTabsOff: '分頁列已隱藏。從側欄導覽；想要 VS Code 式分頁就開啟它。',
     },
     about: {
       title: '關於 OpenAlice',

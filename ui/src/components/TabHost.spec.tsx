@@ -47,7 +47,6 @@ vi.mock('../pages/ChatPageShell', async () => {
   }
 })
 
-vi.mock('./TabStrip', () => ({ TabStrip: () => null }))
 vi.mock('./EmptyEditor', () => ({ EmptyEditor: () => <div>empty</div> }))
 
 const workspaceTab: Tab = {

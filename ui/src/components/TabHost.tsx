@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react'
 import { useWorkspace } from '../tabs/store'
 import { type Tab } from '../tabs/types'
 import { getView, getViewShell } from '../tabs/registry'
-import { TabStrip } from './TabStrip'
 import { EmptyEditor } from './EmptyEditor'
 import { ChatPageShell } from '../pages/ChatPageShell'
 
@@ -37,7 +36,6 @@ export function TabHost() {
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-      <TabStrip />
       <div className="relative min-h-0 min-w-0 flex-1">
         {tabIds.length === 0 ? (
           <EmptyEditor />

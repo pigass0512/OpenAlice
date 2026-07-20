@@ -79,9 +79,6 @@ export const en = {
       usedForDay: 'Used for Day',
       usedForNight: 'Used for Night',
       usedForBoth: 'Used for Day & Night',
-      showEditorTabs: 'Show editor tabs',
-      showEditorTabsOn: 'The tab strip above the editor is shown — click to switch, × or middle-click to close.',
-      showEditorTabsOff: 'The tab strip is hidden. Navigate from the sidebar; turn this on for VS Code-style tabs.',
     },
     about: {
       title: 'About OpenAlice',

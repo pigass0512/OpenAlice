@@ -68,9 +68,6 @@ export const zh: Resources = {
       usedForDay: '用于日间',
       usedForNight: '用于暗夜',
       usedForBoth: '同时用于日间与暗夜',
-      showEditorTabs: '显示编辑器标签页',
-      showEditorTabsOn: '编辑器上方显示标签栏 —— 点击切换，× 或中键关闭。',
-      showEditorTabsOff: '标签栏已隐藏。从侧栏导航；想要 VS Code 式标签页就打开它。',
     },
     about: {
       title: '关于 OpenAlice',

@@ -68,9 +68,6 @@ export const ja: Resources = {
       usedForDay: '昼に使用',
       usedForNight: '夜に使用',
       usedForBoth: '昼と夜の両方に使用',
-      showEditorTabs: 'エディタタブを表示',
-      showEditorTabsOn: 'エディタ上部にタブバーを表示 —— クリックで切替、× または中クリックで閉じる。',
-      showEditorTabsOff: 'タブバーは非表示。サイドバーから移動します。VS Code 風のタブが欲しい場合はオンに。',
     },
     about: {
       title: 'OpenAlice について',
